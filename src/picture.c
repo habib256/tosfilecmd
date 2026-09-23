@@ -29,7 +29,7 @@ int pic_is_picture_name(const char *name)
 {
     return ext_is(name, "PI1") || ext_is(name, "PI2") || ext_is(name, "PI3") ||
            ext_is(name, "PC1") || ext_is(name, "PC2") || ext_is(name, "PC3") ||
-           ext_is(name, "NEO");
+           ext_is(name, "NEO") || ext_is(name, "SPU") || ext_is(name, "SPC");
 }
 
 static unsigned short be16(const unsigned char *p)
@@ -282,4 +282,135 @@ void pic_mono_to_medium(const unsigned char *in, unsigned char *out)
             d[g * 4 + 3] = (unsigned char)p1;
         }
     }
+}
+
+/* ---- Spectrum 512 ---- */
+
+int pic_is_spectrum_name(const char *name)
+{
+    return ext_is(name, "SPU") || ext_is(name, "SPC");
+}
+
+int pic_spectrum_slot(int x, int c)
+{
+    int x1 = 10 * c + ((c & 1) ? -5 : 1);
+    if (x >= x1 + 160) return c + 32;
+    if (x >= x1) return c + 16;
+    return c;
+}
+
+/* RLE du SPC : 0..127 = x + 1 octets tels quels ; 128..255 = l'octet
+ * suivant 258 - x fois. Un seul flux pour les quatre plans. */
+typedef struct {
+    const unsigned char *src;
+    long pos, size;
+    int count, value;           /* value < 0 : litteraux */
+} SPCRLE;
+
+static int spc_byte(SPCRLE *r)
+{
+    while (r->count == 0) {
+        int b;
+        if (r->pos >= r->size) return -1;
+        b = r->src[r->pos++];
+        if (b < 128) {
+            r->count = b + 1;
+            r->value = -1;
+        } else {
+            if (r->pos >= r->size) return -1;
+            r->count = 258 - b;
+            r->value = r->src[r->pos++];
+        }
+    }
+    r->count--;
+    if (r->value >= 0) return r->value;
+    if (r->pos >= r->size) return -1;
+    return r->src[r->pos++];
+}
+
+int pic_decode_spectrum(const char *name, const unsigned char *data, long size,
+                        unsigned char *out, unsigned short *spal)
+{
+    long i;
+    if (ext_is(name, "SPU")) {
+        if (size != 51104L) return size < 51104L ? PIC_BAD : PIC_UNKNOWN;
+        memcpy(out, data, PIC_BYTES);
+        for (i = 0; i < SPEC_PAL_WORDS; i++)
+            spal[i] = be16(data + PIC_BYTES + 2 * i) & 0x0fff;
+        memset(out, 0, 160);                   /* ligne 0 : jamais affichee */
+        return PIC_OK;
+    }
+    if (ext_is(name, "SPC")) {
+        SPCRLE r;
+        long plen, pos;
+        int p, k;
+        if (size < 12) return PIC_UNKNOWN;
+        if (data[0] != 'S' || data[1] != 'P') return PIC_UNKNOWN;
+        plen = ((long)data[4] << 24) | ((long)data[5] << 16) | (data[6] << 8) | data[7];
+        if (plen < 0 || plen > size - 12) return PIC_BAD;
+        memset(out, 0, PIC_BYTES);
+        r.src = data + 12;
+        r.pos = 0;
+        r.size = plen;
+        r.count = 0;
+        /* Plan par plan : des mots tous les 8 octets, a partir de la ligne 1. */
+        for (p = 0; p < 4; p++)
+            for (i = 160 + p * 2; i < PIC_BYTES; i += 8) {
+                int a = spc_byte(&r), b = spc_byte(&r);
+                if (a < 0 || b < 0) return PIC_BAD;
+                out[i] = (unsigned char)a;
+                out[i + 1] = (unsigned char)b;
+            }
+        /* Palettes : un masque de 16 bits (bit 15 ignore), puis les couleurs
+         * presentes ; les absentes sont noires. */
+        pos = 12 + plen;
+        for (k = 0; k < 597; k++) {
+            unsigned short mask;
+            int c;
+            if (pos + 2 > size) return PIC_BAD;
+            mask = (unsigned short)(be16(data + pos) & 0x7fff);
+            pos += 2;
+            for (c = 0; c < 16; c++) {
+                unsigned short v = 0;
+                if (mask & (1 << c)) {
+                    if (pos + 2 > size) return PIC_BAD;
+                    v = be16(data + pos) & 0x0fff;
+                    pos += 2;
+                }
+                spal[k * 16 + c] = v;
+            }
+        }
+        return PIC_OK;
+    }
+    return PIC_UNKNOWN;
+}
+
+void pic_spectrum_to_mono(const unsigned char *bm, const unsigned short *spal,
+                          unsigned char *out)
+{
+    static const unsigned char bayer[4][4] = {
+        { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+    static unsigned int idxbuf[80];
+    unsigned char *idx = (unsigned char *)idxbuf;
+    unsigned char lum[48];
+    int x, y, k, i;
+
+    memset(out, 0, PIC_BYTES);
+    for (y = 1; y < 200; y++) {
+        const unsigned short *pal = spal + (y - 1) * 48;
+        for (i = 0; i < 48; i++) lum[i] = (unsigned char)luma(pal[i]);
+        row_indices(PIC_LOW, bm, y, idx);
+        for (k = 0; k < 2; k++) {
+            int oy = y * 2 + k;
+            unsigned char *o = out + (long)oy * 80;
+            for (x = 0; x < 640; x++) {
+                int sx = x >> 1;
+                int l = lum[pic_spectrum_slot(sx, idx[sx])];
+                if (l * 32 < (2 * bayer[oy & 3][x & 3] + 1) * 15)
+                    o[x >> 3] |= (unsigned char)(0x80 >> (x & 7));
+            }
+        }
+    }
+    /* Ligne 0 : noire. */
+    memset(out, 0xff, 160);
 }

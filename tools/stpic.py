@@ -192,6 +192,138 @@ def mono_to_medium(bm):
 GRAY_PAL = [0x777, 0x444, 0x444, 0x000]
 
 
+# ---- Spectrum 512 ----
+
+def spectrum_slot(x, c):
+    x1 = 10 * c + (-5 if c & 1 else 1)
+    if x >= x1 + 160:
+        return c + 32
+    if x >= x1:
+        return c + 16
+    return c
+
+
+def spectrum_rgb(bm, pals):
+    """Image attendue a l'ecran : 200 lignes de 320 (r, g, b), ligne 0 noire."""
+    rows = unplanar(0, bm)
+    out = [[(0, 0, 0)] * 320]
+    for y in range(1, 200):
+        pal = pals[(y - 1) * 48:y * 48]
+        out.append([st_rgb(pal[spectrum_slot(x, c)]) for x, c in enumerate(rows[y])])
+    return out
+
+
+def spu(bm, pals):
+    return bm[:160] and bytes(160) + bm[160:32000] + struct.pack(">%dH" % len(pals), *pals)
+
+
+def spc(bm, pals):
+    """Compresse comme Spectrum 512 : RLE sur les plans, masques de palette."""
+    stream = bytearray()
+    for p in range(4):
+        for off in range(160 + p * 2, 32000, 8):
+            stream += bm[off:off + 2]
+    packed = bytearray()
+    i = 0
+    while i < len(stream):
+        run = 1
+        while i + run < len(stream) and run < 129 and stream[i + run] == stream[i]:
+            run += 1
+        if run >= 3:
+            packed += bytes([258 - run, stream[i]])
+            i += run
+            continue
+        j = i
+        while j < len(stream) and j - i < 128:
+            if j + 2 < len(stream) and stream[j] == stream[j + 1] == stream[j + 2]:
+                break
+            j += 1
+        packed += bytes([j - i - 1]) + stream[i:j]
+        i = j
+    if len(packed) & 1:
+        packed.append(0)
+    colours = bytearray()
+    for k in range(597):
+        pal = pals[k * 16:(k + 1) * 16]
+        mask = 0
+        for c in range(15):                # bit 15 : jamais (le format l'interdit)
+            if pal[c]:
+                mask |= 1 << c
+        colours += struct.pack(">H", mask)
+        for c in range(15):
+            if mask >> c & 1:
+                colours += struct.pack(">H", pal[c])
+    return (b"SP" + bytes(2) + struct.pack(">II", len(packed), len(colours))
+            + bytes(packed) + bytes(colours))
+
+
+def decode_spectrum(name, data):
+    """-> (bitmap 32000 octets, 199*48 couleurs)."""
+    if name.upper().endswith(".SPU"):
+        pals = list(struct.unpack_from(">%dH" % (199 * 48), data, 32000))
+        return bytes(160) + data[160:32000], [c & 0xFFF for c in pals]
+    plen = struct.unpack_from(">I", data, 4)[0]
+    pos, stream, src = 0, bytearray(), data[12:12 + plen]
+    while len(stream) < 31840:
+        b = src[pos]
+        pos += 1
+        if b < 128:
+            stream += src[pos:pos + b + 1]
+            pos += b + 1
+        else:
+            stream += bytes([src[pos]]) * (258 - b)
+            pos += 1
+    bm = bytearray(32000)
+    k = 0
+    for p in range(4):
+        for off in range(160 + p * 2, 32000, 8):
+            bm[off:off + 2] = stream[k:k + 2]
+            k += 2
+    pos = 12 + plen
+    pals = []
+    for _ in range(597):
+        mask = struct.unpack_from(">H", data, pos)[0] & 0x7FFF
+        pos += 2
+        for c in range(16):
+            if mask >> c & 1:
+                pals.append(struct.unpack_from(">H", data, pos)[0] & 0xFFF)
+                pos += 2
+            else:
+                pals.append(0)
+    return bytes(bm), pals
+
+
+def spectrum_demo():
+    """Un degrade de 512 teintes : l'ecran en bandes de 10 points, chaque
+    bande prend sa couleur dans la palette de sa ligne (indice c = bande
+    modulo 16, jeu 2 pour la moitie gauche, jeu 3 pour la droite). Rouge
+    selon la bande, vert selon la ligne, bleu en diagonale. Les indices 0
+    et 15 restent noirs, comme le veut le format compresse."""
+    def colour(band, y):
+        r = band * 7 // 31
+        g = y * 7 // 198
+        b = ((band + y // 7) // 4) % 8
+        return r << 8 | g << 4 | b
+    pals = []
+    for y in range(1, 200):
+        line = [0] * 48
+        for c in range(1, 15):
+            line[c] = colour(c, y)            # avant la fenetre : comme le jeu 2
+            line[16 + c] = colour(c, y)       # bandes 0-15
+            line[32 + c] = colour(16 + c, y)  # bandes 16-31
+        pals += line
+    def index(x):
+        c = (x // 10) % 16
+        # A droite, le premier point d'une bande paire est encore dans la
+        # fenetre du jeu 2 : on lui donne l'indice de la bande voisine.
+        if x >= 160 and x % 10 == 0 and c % 2 == 0 and c > 0:
+            return c - 1
+        return c
+    row = [index(x) for x in range(320)]
+    rows = [[0] * 320] + [row] * 199
+    return planar(0, rows), pals
+
+
 # ---- les images de la disquette de demonstration ----
 
 def testcard():

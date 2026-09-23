@@ -246,7 +246,105 @@ void view_text(PANEL *p, int hex)
 
 /* ---- Images ---- */
 
+/* Spectrum 512 : la routine de spec512.S dans la file VBL, l'ecran a 50 Hz. */
+extern void spec_vbl(void);
+extern unsigned short *spec_pal;
+static int spec_slot = -1;
+static unsigned char spec_sync;
+
+static long spec_on(void)
+{
+    short n = *(volatile short *)0x454, i;
+    void (**q)(void) = *(void (***)(void))0x456;
+    for (i = 0; i < n; i++)
+        if (!q[i]) {
+            spec_sync = *(volatile unsigned char *)0xffff820aL;
+            *(volatile unsigned char *)0xffff820aL = (unsigned char)(spec_sync | 2);
+            spec_slot = i;
+            q[i] = spec_vbl;
+            return 0;
+        }
+    return -1;
+}
+
+static long spec_off(void)
+{
+    void (**q)(void) = *(void (***)(void))0x456;
+    if (spec_slot >= 0) {
+        q[spec_slot] = 0;
+        *(volatile unsigned char *)0xffff820aL = spec_sync;
+        spec_slot = -1;
+    }
+    return 0;
+}
+
+static void spec_stop(void)
+{
+    static const char mouse_on[] = { 0x08 };           /* souris relative */
+    if (spec_slot < 0) return;
+    Supexec(spec_off);
+    Vsync();
+    Ikbdws(0, mouse_on);
+}
+
+/* Palettes dans l'ordre d'ecriture de la routine : pour chaque ligne,
+ * jeux 2 et 3 de la ligne puis jeu 1 de la suivante (ligne 0 : noire). */
+static void spec_order(const unsigned short *spal, unsigned short *out)
+{
+    int y;
+    memset(out, 0, 200 * 96);
+    memcpy(out + 32, spal, 32);                          /* jeu 1 de la ligne 1 */
+    for (y = 1; y < 200; y++) {
+        unsigned short *o = out + y * 48;
+        const unsigned short *p = spal + (y - 1) * 48;
+        memcpy(o, p + 16, 64);
+        if (y < 199) memcpy(o + 32, p + 48, 32);
+    }
+}
+
+static long show_spectrum(const char *path, const char *name, unsigned char *bm,
+                          unsigned char *conv, unsigned short *spal, unsigned short *order)
+{
+    static const unsigned short black[16];
+    static const char mouse_off[] = { 0x12 };
+    LOADED l;
+    int r;
+    unsigned char *screen;
+
+    load_file(path, 60000L, &l);
+    if (!l.data || l.err) {
+        long e = l.err ? l.err : ENSMEM;
+        unload(&l);
+        return e;
+    }
+    r = pic_decode_spectrum(name, l.data, l.size, bm, spal);
+    unload(&l);
+    if (r != PIC_OK) return r == PIC_BAD ? TE_BADPIC : TE_NOTPIC;
+    if (scr_mono) {
+        pic_spectrum_to_mono(bm, spal, conv);
+        screen = scr_graphics(2, 0);
+        memcpy(screen, conv, PIC_BYTES);
+        return 0;
+    }
+    spec_order(spal, order);
+    spec_pal = order;
+    screen = scr_graphics(0, black);
+    memcpy(screen, bm, PIC_BYTES);
+    /* La routine masque les interruptions presque toute la trame : des
+     * paquets souris perdus desynchroniseraient le TOS. */
+    Ikbdws(0, mouse_off);
+    if (Supexec(spec_on) < 0) {
+        static const char mouse_on[] = { 0x08 };
+        Ikbdws(0, mouse_on);
+        return ENSMEM;
+    }
+    Vsync();
+    return 0;
+}
+
 /* Affiche l'image de nom name (dans dir) ; 0, ou l'erreur a signaler. */
+static unsigned short *spal_buf, *order_buf;
+
 static long show_picture(const char *dir, const char *name, unsigned char *bm,
                          unsigned char *conv)
 {
@@ -256,7 +354,10 @@ static long show_picture(const char *dir, const char *name, unsigned char *bm,
     int r;
     unsigned char *screen;
 
+    spec_stop();
     if (path_join(path, dir, name, 0)) return TE_TOOLONG;
+    if (pic_is_spectrum_name(name))
+        return show_spectrum(path, name, bm, conv, spal_buf, order_buf);
     /* Degas + animation Elite : 32066 octets ; NEOchrome : 32128. */
     load_file(path, 40000L, &l);
     if (!l.data || l.err) {
@@ -324,13 +425,16 @@ void view_picture(PANEL *p)
     char name[14];
 
     if (!f || (f->attr & FA_DIR) || panel_is_drives(p)) return;
-    bm = sys_alloc(2 * PIC_BYTES);
+    bm = sys_alloc(2 * PIC_BYTES + 2L * SPEC_PAL_WORDS + 200L * 96);
     if (!bm) { ui_error("Cannot show", f->name, ENSMEM); return; }
     conv = bm + PIC_BYTES;
+    spal_buf = (unsigned short *)(conv + PIC_BYTES);
+    order_buf = spal_buf + SPEC_PAL_WORDS;
 
     str_copy(name, f->name, sizeof name);
     r = show_picture(p->path, name, bm, conv);
     if (r) {
+        spec_stop();
         scr_text();
         ui_error("Cannot show this picture", name, r);
         sys_free(bm);
@@ -362,6 +466,7 @@ void view_picture(PANEL *p)
             }
         }
     }
+    spec_stop();
     p->cur = shown;
     panel_move(p, 0);
     sys_free(bm);

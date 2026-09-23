@@ -21,7 +21,11 @@ import re
 import struct
 import sys
 
-LOAD_BUDGET = 112 * 1024      # texte + donnees + BSS
+# Texte + donnees + BSS. Un 520 ST sous TOS 1.0 laisse environ 400 Ko au
+# programme ; TOSFC y prend en plus ses panneaux (48 Ko) et, le temps d'une
+# operation, ses tampons (jusqu'a 80 Ko) ou le fichier ouvert. bench/smoke.py
+# et bench/viewers.py tournent sur une machine de 512 Ko.
+LOAD_BUDGET = 160 * 1024
 MAIN_STACK = 16384            # crt0.S : stack_bottom .. stack_top
 CRITIC_STACK = 3072           # crt0.S : critic_stack
 TOS_MARGIN = 1024             # appels systeme (trap : pile utilisateur intacte,

@@ -627,6 +627,89 @@ long ops_delete(OPS *o, const char *dir, const FINFO *items, int n)
     return o->stop ? (o->last_err ? o->last_err : TE_CANCEL) : 0;
 }
 
+/* ---- Enregistrement d'un fichier edite ---- */
+
+#define TMP_NAME "TOSFC.$ED"
+
+long ops_save_stream(const char *dir, const char *name, int create,
+                     STREAMFN gen, void *ctx, char *buf, long half)
+{
+    char path[PATH_MAX_TOSFC], tmp[PATH_MAX_TOSFC], bak[PATH_MAX_TOSFC];
+    FINFO f, chk;
+    long r, h, n, w, at = 0;
+    int attr = 0, existed;
+    char *b2 = buf + half;
+
+    if (path_join(path, dir, name, 0) || path_join(tmp, dir, TMP_NAME, 0) ||
+        path_join(bak, dir, BAK_NAME, 0))
+        return TE_TOOLONG;
+    r = probe(path, &f);
+    if (r < 0) return r;
+    existed = (int)r;
+    if (existed) {
+        if (create) return TE_EXISTS;
+        if (f.attr & FA_DIR) return TE_ISDIR;
+        if (f.attr & FA_RDONLY) return TE_READONLY;
+        attr = f.attr & (FA_HIDDEN | FA_SYSTEM | FA_ARCH);
+    }
+    /* Ni le temporaire ni la sauvegarde ne doivent exister : ce pourrait
+     * etre la seule copie restante d'un enregistrement interrompu. */
+    r = probe(tmp, &chk);
+    if (r != 0) return r > 0 ? TE_BAKEXIST : r;
+    if (existed) {
+        r = probe(bak, &chk);
+        if (r != 0) return r > 0 ? TE_BAKEXIST : r;
+    }
+
+    /* 1. Le temporaire, ecrit puis relu. */
+    h = sys_create(tmp, 0);
+    if (h < 0) return h;
+    r = 0;
+    for (;;) {
+        n = gen(ctx, at, buf, half);
+        if (n <= 0) break;
+        w = sys_write((int)h, n, buf);
+        if (w < 0) { r = w; break; }
+        if (w != n) { r = TE_SHORTW; break; }
+        at += n;
+    }
+    w = sys_close((int)h);
+    if (r == 0 && w < 0) r = w;
+    if (r == 0) {
+        h = sys_open(tmp, 0);
+        if (h < 0) r = h;
+        else {
+            at = 0;
+            for (;;) {
+                long m = gen(ctx, at, buf, half);
+                n = sys_read((int)h, half, b2);
+                if (m < 0 || n < 0) { r = n < 0 ? n : TE_VERIFY; break; }
+                if (m != n || memcmp(buf, b2, n)) { r = TE_VERIFY; break; }
+                if (n == 0) break;
+                at += n;
+            }
+            sys_close((int)h);
+        }
+    }
+    if (r) { sys_delete(tmp); return r; }
+
+    /* 2. L'original de cote, le nouveau a sa place. */
+    if (existed) {
+        r = sys_rename(path, bak);
+        if (r < 0) { sys_delete(tmp); return r; }
+    }
+    r = sys_rename(tmp, path);
+    if (r < 0) {
+        if (existed && sys_rename(bak, path) < 0) return TE_RESTORE;
+        sys_delete(tmp);
+        return r;
+    }
+    if (attr) sys_attrib(path, 1, attr);
+    /* 3. L'ancienne version n'est plus utile. */
+    if (existed && sys_delete(bak) < 0) return TE_RESTORE;
+    return 0;
+}
+
 /* ---- Operations simples ---- */
 
 long ops_rename(const char *dir, const char *oldname, const char *newname)

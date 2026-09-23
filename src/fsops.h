@@ -61,6 +61,19 @@ long ops_copy(OPS *o, const char *srcdir, const FINFO *items, int n,
               const char *dstdir, int move);
 long ops_delete(OPS *o, const char *dir, const FINFO *items, int n);
 
+/* Producteur des octets d'un fichier a ecrire : copie dans out[cap] les
+ * octets a partir de at ; renvoie leur nombre (0 a la fin). */
+typedef long (*STREAMFN)(void *ctx, long at, char *out, long cap);
+
+/* Enregistre dir+name depuis gen : temporaire TOSFC.$ED exclusif, ecrit,
+ * ferme, relu et compare ; puis l'ancien fichier devient TOSFC.BAK, le
+ * temporaire prend son nom, et TOSFC.BAK est supprime. create = 1 pour un
+ * nouveau fichier (le nom doit etre libre). Sur erreur, l'original est
+ * intact (ou remis en place) et le temporaire retire. buf : 2 x half octets
+ * de travail. Les attributs de l'original (sauf lecture seule) sont gardes. */
+long ops_save_stream(const char *dir, const char *name, int create,
+                     STREAMFN gen, void *ctx, char *buf, long half);
+
 long ops_rename(const char *dir, const char *oldname, const char *newname);
 long ops_mkdir(const char *dir, const char *name);
 long ops_setattr(const char *dir, const FINFO *f, int attr);

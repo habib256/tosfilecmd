@@ -40,6 +40,23 @@ void pic_to_mono(const PICINFO *info, const unsigned char *in, unsigned char *ou
 void pic_mono_to_medium(const unsigned char *in, unsigned char *out);
 extern const unsigned short pic_gray_pal[4];
 
+/* ---- Spectrum 512 ---- */
+
+/* 199 lignes de 48 couleurs (trois palettes de 16), la ligne 0 est noire. */
+#define SPEC_PAL_WORDS (199 * 48)
+
+int pic_is_spectrum_name(const char *name);
+/* SPU (51104 octets) ou SPC (compresse) : bitmap dans out[PIC_BYTES],
+ * palettes dans spal[SPEC_PAL_WORDS]. PIC_OK, PIC_UNKNOWN ou PIC_BAD. */
+int pic_decode_spectrum(const char *name, const unsigned char *data, long size,
+                        unsigned char *out, unsigned short *spal);
+/* Laquelle des 48 couleurs de sa ligne prend le point x d'indice c
+ * (formule du format Spectrum 512, calee sur le temps d'ecriture). */
+int pic_spectrum_slot(int x, int c);
+/* Pour un moniteur monochrome : tramage point par point. */
+void pic_spectrum_to_mono(const unsigned char *bm, const unsigned short *spal,
+                          unsigned char *out);
+
 /* Indice de couleur du pixel (x, y) d'un bitmap planaire. */
 int pic_pixel(int res, const unsigned char *bm, int x, int y);
 

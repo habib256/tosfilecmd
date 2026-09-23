@@ -121,6 +121,10 @@ def build(version, prg, geometry):
         pal, rows = gen()
         b.add("DEMO\\PICTURES\\" + name, fmt(res, pal, rows), date=dos_date(1990, 1, 1))
     if geometry == "720k":
+        bm, spal = stpic.spectrum_demo()
+        b.add("DEMO\\PICTURES\\RAINBOW.SPC", stpic.spc(bm, spal), date=dos_date(1991, 4, 1))
+        b.add("DEMO\\PICTURES\\RAINBOW.SPU", stpic.spu(bm, spal), date=dos_date(1991, 4, 1))
+    if geometry == "720k":
         b.add("DEMO\\TEXTS\\MANUAL.TXT", manual_text())
         b.add("DEMO\\TEXTS\\LONG.TXT", long_text())
         b.add("DEMO\\BIG.BIN", bytes((k * 31 + (k >> 8)) & 0xFF for k in range(120000)),

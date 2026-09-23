@@ -133,6 +133,14 @@
 #define Vsync()               TRAP_W(14, 37)
 #define Supexec(f)            TRAP_WL(14, 38, f)
 
+/* Ikbdws(n, buf) : envoie n + 1 octets au clavier. */
+#define Ikbdws(n, b) ({                                                  \
+    register long _r __asm__("d0"); short _n = (short)(n); long _b = (long)(b); \
+    __asm__ volatile ("move.l %2,-(%%sp)\n\tmove.w %1,-(%%sp)\n\t"       \
+        "move.w #25,-(%%sp)\n\ttrap #14\n\taddq.l #8,%%sp"                \
+        : "=r"(_r) : "r"(_n), "r"(_b) : TRAP_CLOBBERS);                  \
+    _r; })
+
 /* Structure renvoyee par Kbdvbase : on n'utilise que mousevec. */
 typedef struct {
     void (*midivec)(void);

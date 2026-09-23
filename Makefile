@@ -23,12 +23,13 @@ DIST  = dist
 
 CFLAGS = -mcpu=68000 -Os -fomit-frame-pointer -ffreestanding \
          -fno-tree-loop-distribute-patterns -fno-common \
-         -Wall -Wextra -Wno-unused-parameter -std=gnu99 -fcallgraph-info=su
+         -Wall -Wextra -Wno-unused-parameter -std=gnu99 -fcallgraph-info=su \
+         --param=min-pagesize=0
 LDFLAGS = -mcpu=68000 -nostdlib -T src/tosfc.ld -Wl,--emit-relocs \
           -Wl,-Map,$(BUILD)/tosfc.map -Wl,--no-warn-rwx-segments
 
 OBJS = crt0.o main.o screen.o input.o ui.o panel.o fsops.o prefs.o view.o picture.o \
-       textview.o sys_tos.o libc.o
+       textview.o edit.o edbuf.o spec512.o sys_tos.o libc.o
 OBJS := $(addprefix $(BUILD)/,$(OBJS))
 HDRS = $(wildcard src/*.h)
 
@@ -40,8 +41,8 @@ $(BUILD):
 $(BUILD)/%.o: src/%.c $(HDRS) | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/crt0.o: src/crt0.S | $(BUILD)
-	$(CC) -mcpu=68000 -c $< -o $@
+$(BUILD)/%.o: src/%.S | $(BUILD)
+	$(CC) -mcpu=68000 $(ASFLAGS) -c $< -o $@
 
 $(BUILD)/tosfc.elf: $(OBJS) src/tosfc.ld
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lgcc
@@ -69,10 +70,16 @@ $(BUILD)/host/test_view: tests/test_view.c src/picture.c src/textview.c src/libc
                          $(HDRS) | $(BUILD)
 	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_view.c src/picture.c src/textview.c src/libc.c
 
-test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/host/test_view $(BUILD)/TOSFC.PRG
+$(BUILD)/host/test_edit: tests/test_edit.c tests/fakedos.c src/edbuf.c src/fsops.c src/libc.c \
+                         $(HDRS) | $(BUILD)
+	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_edit.c tests/fakedos.c src/edbuf.c src/fsops.c src/libc.c
+
+test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/host/test_view \
+      $(BUILD)/host/test_edit $(BUILD)/TOSFC.PRG
 	$(BUILD)/host/test_fsops
 	$(BUILD)/host/test_prefs
 	$(BUILD)/host/test_view
+	$(BUILD)/host/test_edit
 	$(PYTHON) tests/test_fat12.py
 	$(PYTHON) tests/test_elf2prg.py $(BUILD)
 

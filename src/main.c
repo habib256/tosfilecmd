@@ -10,6 +10,7 @@
 #include "fsops.h"
 #include "prefs.h"
 #include "view.h"
+#include "edit.h"
 #include "picture.h"
 #include "version.h"
 
@@ -28,14 +29,14 @@ static int quit;
 
 typedef struct { const char *key, *label; short cmd; } KEYBAR;
 enum { C_HELP, C_COPY, C_MOVE, C_REN, C_DEL, C_MKDIR, C_ATTR, C_SORT,
-       C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_NCMD };
+       C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_EDIT, C_NCMD };
 /* 80 colonnes tout juste : les libelles sont courts. */
 static const KEYBAR keybar[] = {
-    { "?", "Help", C_HELP }, { "T", "Text", C_TEXT }, { "I", "Image", C_IMAGE },
-    { "C", "Copy", C_COPY }, { "V", "Move", C_MOVE }, { "R", "Ren", C_REN },
-    { "D", "Del", C_DEL }, { "K", "MkDir", C_MKDIR }, { "A", "Attr", C_ATTR },
-    { "S", "Sort", C_SORT }, { "L", "Drives", C_DRIVES }, { "O", "Opts", C_OPTS },
-    { "Q", "Quit", C_QUIT },
+    { "?", "Help", C_HELP }, { "T", "View", C_TEXT }, { "I", "Pic", C_IMAGE },
+    { "E", "Edit", C_EDIT }, { "C", "Copy", C_COPY }, { "V", "Move", C_MOVE },
+    { "R", "Ren", C_REN }, { "D", "Del", C_DEL }, { "K", "MkD", C_MKDIR },
+    { "A", "Attr", C_ATTR }, { "S", "Sort", C_SORT }, { "L", "Drv", C_DRIVES },
+    { "O", "Opts", C_OPTS }, { "Q", "Quit", C_QUIT },
 };
 #define NKEYBAR (int)(sizeof keybar / sizeof keybar[0])
 static short keybar_x[NKEYBAR + 1];
@@ -429,6 +430,7 @@ static void cmd_help(void)
         "",
         "RETURN, F3   view a file: pictures full screen, others as text",
         "T  I  H      read as text, show as a picture, show in hex",
+        "E  F4        edit a text file (on a folder: a new file)",
         "C  F5        copy to the other panel",
         "V  F6        move to the other panel",
         "R            rename               K  F7    make a folder",
@@ -521,6 +523,9 @@ static void do_cmd(int c)
     case C_TEXT: view_text(&panels[active], 0); break;
     case C_HEX: view_text(&panels[active], 1); break;
     case C_IMAGE: view_picture(&panels[active]); break;
+    case C_EDIT:
+        if (edit_file(&panels[active])) reload_both();
+        break;
     case C_VIEW: {
         FINFO *f = panel_current(&panels[active]);
         if (f && !(f->attr & FA_DIR) && !panel_is_drives(&panels[active]))
@@ -573,6 +578,7 @@ static void on_key(EVENT *e)
     case SC_HELP: case SC_F1: do_cmd(C_HELP); return;
     case SC_F2: do_cmd(C_ATTR); return;
     case SC_F3: do_cmd(C_VIEW); return;
+    case SC_F4: do_cmd(C_EDIT); return;
     case SC_F5: do_cmd(C_COPY); return;
     case SC_F6: do_cmd(C_MOVE); return;
     case SC_F7: do_cmd(C_MKDIR); return;

@@ -10,7 +10,7 @@
 # Toolchain: m68k-elf-gcc (Homebrew: brew install m68k-elf-gcc) and Python 3.
 # No C library: src/libc.c and the TOS calls of src/tos.h are all there is.
 
-VERSION = 0.3.0
+VERSION = 0.4.0
 
 CROSS   ?= m68k-elf-
 CC      = $(CROSS)gcc

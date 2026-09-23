@@ -11,3 +11,10 @@ demo-disk build use one external tool:
 The copy comes from the DeaDBeeF repository (`plugins/sc68/libsc68/unice68`);
 a later copy with explicit buffer sizes was not used, because its range check
 on back-references looks at the packed buffer instead of the output.
+
+Two decompressors installed on the developer's machine, not in the
+repository, serve as independent references: **lhasa** (`lha`), run by
+`tests/test_lha.py` when present, checks `tools/lha.py`; **unar**
+(The Unarchiver) was used by hand to check the ARC archives written by
+`tools/arcpack.py`. The ZIP test files come from Python's `zipfile`, and
+TOSFC's deflate decoder (`src/inflate.c`) is its own code.

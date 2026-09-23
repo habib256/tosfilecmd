@@ -26,6 +26,8 @@ temporaires. Un banc refuse une disquette qui ne porte pas le
 | `viewers.py` | Images en couleur (mémoire vidéo = bitmap du fichier, résolution, et **chaque pixel** de la capture = couleur de la palette), monochrome sur écran couleur (gris), couleur sur moniteur mono (tramage identique à la référence Python), album et sélection qui suit, images abîmées refusées et sautées ; **Spectrum 512 : chacun des 64 000 points à sa couleur**, mono tramé comme la référence, souris revenue ; texte : 1st Word, pages, fin, recherche, hexa aller-retour, fichier vide, binaire ; disquette inchangée au bit près. **53 contrôles.** |
 | `editor.py` | Taper, ligne nouvelle, coupe (Ctrl+Y), F10, ESC avec ou sans enregistrer, nouveau fichier, refus (1st Word, lecture seule, binaire), fichier de 66 Ko réenregistré identique au bit près, disquette protégée (rien de perdu), aucun `TOSFC.$ED`/`TOSFC.BAK` restant, frappe rapide en fin de fichier, fsck. **25 contrôles.** |
 | `music.py` | YM : 50 appels/s sur un écran 60 Hz, registres identiques à la partition ; SNDH compressé ICE! et en clair (le lecteur 68000 avance), sous-morceau suivant, pause, boîte Musique, arrêt et sortie qui décrochent `etv_timer` ; morceaux abîmés refusés ; **un vrai son** dans la sortie audio de NeoST. **16 contrôles.** |
+| `archives.py` | TEXTS.LZH, PICTURES.ZIP, OLDIES.ARC, OLDDISK.MSA ouverts par RETURN : listes en 8.3, description, « Read-only » ; fichiers et dossiers copiés vers C: identiques octet pour octet (lus en Python par zipfile, lha.py, arcpack.py, fat12.py) ; écriture refusée (supprimer, renommer, créer, attributs, éditer, copier vers, déplacer) ; texte, image (mémoire vidéo exacte) et musique lus dans l'archive ; ESC referme ; ZIP tronqué refusé, CRC faux sans fichier partiel ; disquette inchangée. **42 contrôles.** |
+| `disktools.py` | Disquette B: lue en image sur C: octet pour octet ; formatage 720 Ko (panneau vide aussitôt : GEMDOS a relu, fsck, numéro de série neuf) ; image `.MSA` écrite puis relue identique ; 800 Ko refusé par le lecteur et signalé ; copie A: → B: exacte ; puis, TOSFC démarré de A: : écraser, formater ou copier sur la disquette du programme refusé, image inchangée au bit près. FDC au rythme réel (voir TODO). **25 contrôles.** |
 | `memory.py` | Creux réel des deux piles après une session chargée, comparé à la réserve et à l'estimation statique de `tools/check_budget.py`. **4 contrôles.** |
 
 `run_all.py` les enchaîne et résume ; `make bench` le lance après `make disk`.
@@ -55,6 +57,12 @@ NEOST_ROM=/chemin/vers/tos104.img python3 bench/smoke.py   # un autre TOS
   d'opération, et l'accès aux disques de l'hôte et aux images (`tools/fat12.py`).
 
 ## Limites honnêtes
+
+Un banc refuse un `neost-headless` construit sur un autre commit que celui
+de `../neost` (`NEOST_ANY_BUILD=1` pour passer outre). La copie de disquette
+à un seul lecteur et le formatage 10/11 secteurs ne sont vérifiés que sur
+l'hôte (`test_disk`) : NeoST ne change pas de disquette en cours de session
+et refuse, comme Hatari, une géométrie différente de l'image.
 
 Les bancs tournent sous **EmuTOS** : les TOS 1.00 à 2.06 d'Atari n'ont pas
 encore été essayés, faute de ROM dans l'arbre de NeoST. Un vrai lecteur de

@@ -5,7 +5,7 @@
 **Two panels. One Atari ST.**
 
 A two-panel file manager for the Atari ST, STE and Mega ST.\
-Manage files — every copy read back and checked — read and edit texts, view Degas, NEOchrome and Spectrum 512 pictures, and play YM and SNDH music while you work.
+Manage files — every copy read back and checked — open disk images and archives like folders, image, copy and format floppies, read and edit texts, view Degas, NEOchrome and Spectrum 512 pictures, and play YM and SNDH music while you work.
 
 **[Manual](docs/MANUAL.md) · [Changelog](CHANGELOG.md) · [Data safety](docs/DATA-SAFETY.md) · [Roadmap](TODO.md)**
 
@@ -21,7 +21,7 @@ GEMDOS: a folder on each side, a bar of commands at the bottom, and the
 file you want is always two keys away. Tag a batch, press **C**, and it is on
 the other side — written, closed, read back and compared.
 
-## What version 0.3 does
+## What version 0.4 does
 
 | | |
 |---|---|
@@ -32,11 +32,13 @@ the other side — written, closed, read back and compared.
 | **Edit texts** | A full-screen editor. Saving writes a new copy, reads it back, and only then replaces the file; line ends (CRLF, LF, CR) are kept as they were. |
 | **View pictures** | Degas (`.PI1`–`.PI3`), Degas Elite compressed (`.PC1`–`.PC3`), NEOchrome (`.NEO`) and **Spectrum 512** (`.SPU`, `.SPC`: 48 colours on every line, the palette rewritten by a cycle-exact routine). Left/Right leaf through the folder like an album. A colour picture on a monochrome monitor is dithered; a monochrome one on a colour monitor is shown in greys. |
 | **Play music** | YM files (LHA-compressed, as found everywhere) and SNDH tunes (ICE!-packed or not), in the background while you keep working. **M** shows the tune, **P** pauses. |
+| **Open images and archives** | RETURN on a `.ST` or `.MSA` floppy image, or on a `.LZH`/`.LHA`, `.ZIP` or `.ARC` archive, opens it like a folder, read-only. Copy files and whole folders out of it with **C**: the ordinary verified copy, checksums checked on the way. View pictures and texts and play tunes straight from inside. Long names become 8.3 without clashes. |
+| **Floppy tools** | **F**: read a floppy into a `.ST` image, write a `.ST` or `.MSA` image to a floppy, copy a whole floppy with one drive or two, format 360, 720, 800 or 880 KB. Every written track is read back. The floppy TOSFC started from is never overwritten. |
 | **Attributes** | Read-only, hidden, system and archive bits, for one file or a tagged batch. |
 | **Mouse or keyboard** | Click to select, click again to open, right-click to tag; click a column title to sort. Every command also has a key, and the familiar function keys work. |
 | **Remember** | Options → Save writes `TOSFC.INF` beside the program: both panels, their sort order and the options come back next time. Nothing is written unless you ask. |
 
-Disk images and archives are next: see the [roadmap](TODO.md).
+Tools and plugins are next: see the [roadmap](TODO.md).
 
 <table>
   <tr>
@@ -63,8 +65,8 @@ Build the disks with `make disk` (a release will carry them), then:
 
 | Disk | For |
 |---|---|
-| `TOSFC-0.3.0.st` | 720 KB double-sided floppy: any ST with a double-sided drive |
-| `TOSFC-0.3.0-SS.st` | 360 KB single-sided floppy: the 520 ST's original SF354 drive |
+| `TOSFC-0.4.0.st` | 720 KB double-sided floppy: any ST with a double-sided drive |
+| `TOSFC-0.4.0-SS.st` | 360 KB single-sided floppy: the 520 ST's original SF354 drive |
 
 1. Boot the disk: TOS File Cmd starts from its `AUTO` folder. Low
    resolution switches to medium while it runs and comes back when you quit.
@@ -72,7 +74,8 @@ Build the disks with `make disk` (a release will carry them), then:
    every key.
 3. The `DEMO` folder is there to be copied, moved, renamed and deleted;
    `DEMO\PICTURES`, `DEMO\TEXTS` and `DEMO\MUSIC` show off the viewers,
-   the editor and the player.
+   the editor and the player; `DEMO\ARCHIVES` holds an LHA, a ZIP, an ARC
+   and an MSA floppy image to open.
    **Q** returns to the desktop, where `TOSFC.PRG` starts it again.
 
 On a hard disk, copy `TOSFC.PRG` anywhere and run it from the desktop.
@@ -85,7 +88,7 @@ to 2.06 and real hardware have not been tried yet.
 
 | Key | Action |
 |---|---|
-| `TAB` · `RETURN` · `ESC` | Switch panel · open (a folder, a picture or a text) · go up |
+| `TAB` · `RETURN` · `ESC` | Switch panel · open (a folder, an image or archive, a picture or a text) · go up |
 | `T` · `I` · `H` · `E` | Read as text · show as a picture · show in hex · edit |
 | `M` · `P` | Music box · pause (RETURN on a `.YM` or `.SND` plays it) |
 | Up / Down · Left / Right | Select · page |
@@ -93,6 +96,7 @@ to 2.06 and real hardware have not been tried yet.
 | `C` `F5` · `V` `F6` | Copy · move to the other panel |
 | `R` · `K` `F7` · `D` `F8` | Rename · make a folder · delete |
 | `A` `F2` · `S` `F9` | Attributes · sort |
+| `F` | Floppy: read to an image, write an image, copy, format |
 | `L` · `O` | Drive list · options |
 | `?` `Help` `F1` · `Q` `F10` | Help · quit |
 

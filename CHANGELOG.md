@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.4.0 — 2026-09-23 — J3 : images disque, archives, outils de disquette
+
+- **Images et archives ouvertes comme des dossiers** (RETURN), en lecture
+  seule : `.ST` et `.MSA` (FAT12 lu secteur par secteur, pistes MSA
+  compressées), `.LZH`/`.LHA` (`-lh0-`, `-lh5-`, en-têtes 0 à 2, dossiers),
+  `.ZIP` (stockés, deflate : `inflate.c` écrit pour TOSFC), `.ARC` (méthodes
+  1 à 4, 8 et 9 : RLE, squeeze, LZW de compress 4.0). Noms ramenés en 8.3
+  sans doublon (`~1`), 1 024 entrées, 16 niveaux.
+- **Extraction = la copie ordinaire** : `fsops` lit désormais ses sources
+  par une interface `SOURCE` (GEMDOS, image, archive, disquette) ; création
+  exclusive, `TOSFC.BAK`, relecture — et CRC-16/CRC-32 vérifié avant la
+  première écriture. Visionneuses et musique lisent dans les conteneurs.
+  Écrire dedans (déplacer, supprimer, renommer, créer, attributs, éditer,
+  copier vers) est refusé. Conteneur modifié depuis l'ouverture (taille,
+  date) : refus. Chaîne de clusters d'un fichier d'image vérifiée à
+  l'ouverture (boucle, chaîne coupée).
+- **Outils de disquette** (`F`) : lire une disquette en image `.ST` (par la
+  copie vérifiée), écrire une image `.ST`/`.MSA` sur disquette (chaque piste
+  formatée, écrite, relue), copier une disquette à deux lecteurs ou à un seul
+  (échanges reconnus d'après le secteur de boot, piste 0 écrite en dernier),
+  formater 360/720/800/880 Ko (numéro de série neuf). La disquette d'où
+  TOSFC a démarré n'est jamais une cible. Changement de disquette forcé pour
+  le GEMDOS après écriture (`hdv_mediach`). Appels XBIOS dans `flop.S`.
+- **Disquette** : `DEMO\ARCHIVES` (TEXTS.LZH, PICTURES.ZIP, OLDIES.ARC,
+  OLDDISK.MSA). `BIG.BIN` ramené à 90 000 octets pour garder de la place à
+  l'enregistrement de `LONG.TXT` (un enregistrement sûr écrit une copie).
+- Chemins trop longs pour le titre d'un panneau : on en montre la fin.
+  Erreurs TOS inconnues affichées avec leur numéro.
+- **Tests** : `test_vfs` (230 : listes et contenus, extraction, corruptions,
+  2 500 conteneurs aléatoires, méthodes non gérées), `test_disk` (108 :
+  fausses disquettes à pannes). Tests de mutation des nouvelles protections.
+  **Bancs** : `archives.py` (42), `disktools.py` (25). Les bancs refusent un
+  `neost-headless` plus vieux que ses sources. `tools/arcpack.py` (ARC,
+  vérifié contre unar), `fat12.msa`.
+- Budget : 154 Ko sur 160 ; pile principale 11,6 Ko sur 16 (les sources
+  appelées par pointeur sont désormais comptées).
+
+Corrigé pendant le développement : la table des pistes MSA allouée en mots
+de 32 bits (débordement sur l'hôte 64 bits) ; l'en-tête LZH relu dans un
+tampon de 1 Ko refusait les fichiers plus longs ; la copie à un lecteur
+abandonnait si l'utilisateur n'avait pas encore changé de disquette ; une
+boucle dans la chaîne FAT d'un petit fichier aurait donné des données
+fausses sans erreur (trouvé par test de mutation). Côté bancs : deux échecs
+venaient de NeoST (un binaire périmé ; avec `--fastfdc`, une écriture après
+un formatage lit une mémoire altérée — signalé, `disktools.py` tourne au
+rythme réel du contrôleur).
+
 ## 0.3.0 — 2026-09-23 — J2 terminé : éditeur, Spectrum 512, musique
 
 - **Éditeur de texte** (`E`, `F4`) : tampon à trou, défilement horizontal,

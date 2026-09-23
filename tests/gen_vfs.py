@@ -90,6 +90,22 @@ def gen_image(out, f):
     open(os.path.join(out, "IMG.ST"), "wb").write(img)
     ex.write()
     open(os.path.join(out, "IMG.MSA"), "wb").write(fat12.msa(img))
+    # LOOP.ST : la chaine de BIG.BIN revient sur son premier cluster apres le
+    # troisieme (fichier de 70 Ko, bien plus court que la disquette).
+    im = fat12.Image(img)
+    first = [e for p, e in im.walk() if p.endswith("BIG.BIN")][0]["cluster"]
+    third = im.fat[im.fat[first]]
+    loop = bytearray(img)
+    for base in (im.fat_start * 512, (im.fat_start + im.spf) * 512):
+        o = base + third * 3 // 2
+        if third & 1:
+            loop[o] = (loop[o] & 0x0F) | ((first << 4) & 0xF0)
+            loop[o + 1] = (first >> 4) & 0xFF
+        else:
+            loop[o] = first & 0xFF
+            loop[o + 1] = (loop[o + 1] & 0xF0) | ((first >> 8) & 0x0F)
+    assert fat12.Image(bytes(loop)).fat[third] == first
+    open(os.path.join(out, "LOOP.ST"), "wb").write(bytes(loop))
     ms = Expect(out, "IMG.MSA")
     ms.lines = [l.replace("IMG.ST.", "IMG.MSA.") for l in ex.lines]
     for l in ex.lines:

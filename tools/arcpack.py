@@ -2,8 +2,10 @@
 """arcpack.py -- archives ARC (SEA ARC 5.x) pour les tests et la demo.
 
 Methodes : 2 stocke, 3 RLE ($90), 4 squeeze (Huffman + RLE), 8 crunch (LZW
-12 bits + RLE, comme compress 4.0), 9 squash (LZW 13 bits). Verifie contre
-un decompresseur independant (unar) par tests/test_arcpack.py.
+12 bits + RLE, comme compress 4.0), 9 squash (LZW 13 bits). Verifie a la
+main contre un decompresseur independant (unar -D, 30 archives de 2026-09-23 :
+unar ne reconnait une archive que si son premier membre est stocke) ; dans
+le depot, src/arc.c le relit a chaque `make test` (test_vfs).
 
     python3 tools/arcpack.py out.arc METHOD FILE...
 """

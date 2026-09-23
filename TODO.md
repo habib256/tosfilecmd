@@ -23,8 +23,7 @@ progression et ESC, souris, aide, préférences, erreurs critiques.
 - **Sélection par la souris** : glisser pour marquer une série.
 - **Lancer un programme** (`.PRG`, `.TOS`, `.TTP`) depuis un panneau, et
   revenir à TOSFC ensuite.
-- Archives LHA : `src/lzh.c` sait déjà lire les en-têtes et décompresser
-  `-lh5-` (pour les YM) ; l'ouverture d'un `.LZH` comme dossier est pour J3.
+- ✅ Archives LHA ouvertes comme des dossiers (J3).
 
 ## J2 — visionneuses et éditeur ✅ (0.2.0, 0.3.0)
 
@@ -42,16 +41,20 @@ Spectrum 512 ; éditeur ; musique YM et SNDH en tâche de fond.
 - Le TOS d'Atari (1.00 à 2.06) et une vraie machine, pour tout J2 aussi
   (la routine Spectrum est réglée sur l'émulation de NeoST, fidèle à Hatari).
 
-## J3 — images disque et archives (en cours)
+## J3 — images disque, archives, disquettes ✅ (0.4.0)
 
 - ✅ `.ST` et `.MSA` ouvertes comme des dossiers en lecture seule (FAT12,
   pistes MSA compressées), extraction par la copie ordinaire.
 - ✅ Archives LZH (`-lh0-`, `-lh5-`, niveaux 0 à 2), ZIP (stockés, deflate),
   ARC (méthodes 1 à 4, 8, 9) : CRC vérifié, noms ramenés en 8.3 sans doublon,
   conteneur modifié pendant l'ouverture → refus (`test_vfs`, `bench/archives.py`).
-- Lire une disquette en image, écrire une image sur disquette (`Floprd`,
-  `Flopwr`), copier une disquette (un ou deux lecteurs), formater (`Flopfmt`,
-  9/10/11 secteurs) : confirmation, cible affichée, volume du programme protégé.
+- ✅ Lire une disquette en image, écrire une image sur disquette, copier une
+  disquette (un ou deux lecteurs), formater 9/10/11 secteurs, une ou deux
+  faces : confirmation, cible affichée, disquette du programme protégée
+  (`test_disk`, `bench/disktools.py`).
+- Plus tard : écrire une disquette en `.MSA` compressé ; copie à un lecteur
+  vérifiée dans NeoST (il faudrait changer de disquette en cours de banc) ;
+  formatage 10/11 secteurs vérifié sur une vraie machine.
 - Plus tard : archive dans une archive, LZH `-lh1-`/`-lh6-`/`-lh7-`, ZIP64,
   ZIP chiffrés (refusés proprement aujourd'hui : « Compression method not
   supported »).
@@ -66,6 +69,10 @@ IDENT — en plugins chargés par `Pexec`, avec un SDK.
 
 - Des ROM TOS d'Atari dans l'arbre de test, ou une procédure pour les fournir.
 - Une option pour ne déclarer qu'un lecteur de disquette (`_nflops = 1`).
+- Signalé dans le TODO de NeoST le 2026-09-23 : avec `--fastfdc`, une écriture
+  qui suit un formatage lit une mémoire altérée (`bench/repro/fastfdc_format.py`) ;
+  `bench/disktools.py` tourne sans `--fastfdc` en attendant. Demandé aussi : une
+  commande serveur pour changer de disquette (copie à un lecteur).
 
 ### Livré par NeoST le 2026-09-23 (commit `c70dc1b`) — exploité
 

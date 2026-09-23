@@ -758,6 +758,15 @@ static long s_open(void *ctx, const char *path)
     v->remaining = (long)e->size;
     v->bufpos = 0;
     if (v->kind == VK_IMAGE) {
+        /* La chaine du fichier : exactement le nombre de clusters que veut sa
+         * taille, puis une fin de chaine. Une boucle ou une chaine coupee se
+         * voit ici, avant la premiere ecriture, pas en milieu de copie. */
+        long need = ((long)e->size + (long)v->spc * 512 - 1) / ((long)v->spc * 512), k, c = e->pos;
+        for (k = 0; k < need; k++) {
+            if (c < 2 || c >= v->ncl + 2) { s_close(v, 0); return TE_BADARC; }
+            if (k + 1 < need) c = v->fat[c];
+        }
+        if (need > 0 && v->fat[c] < 0xff8) { s_close(v, 0); return TE_BADARC; }
         v->cl = e->pos;
         v->cloff = 0;
         v->clsteps = 0;

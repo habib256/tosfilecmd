@@ -1,4 +1,4 @@
-# TOS File Cmd 0.3 — Manual
+# TOS File Cmd 0.4 — Manual
 
 ## 1. Starting
 
@@ -8,7 +8,7 @@ monochrome monitor (high resolution). In low resolution it switches to
 medium while it runs and restores low resolution and your colours when you
 quit.
 
-- **From the floppy**: boot `TOSFC-0.3.0.st` (or `-SS.st` for a single-sided
+- **From the floppy**: boot `TOSFC-0.4.0.st` (or `-SS.st` for a single-sided
   drive). TOSFC starts from the `AUTO` folder.
 - **From the desktop**: open `TOSFC.PRG`.
 
@@ -38,7 +38,7 @@ nothing is tagged, and copy or move towards the folder of the other panel.
 | Key | Action |
 |---|---|
 | `TAB` | Switch panels |
-| `RETURN`, `F3` | Open the selected folder or drive; view a file (pictures full screen, anything else as text) |
+| `RETURN`, `F3` | Open the selected folder, drive, disk image or archive; view a file (pictures full screen, anything else as text) |
 | `T` · `I` · `H` | Read the file as text · show it as a picture · show it in hex |
 | `E`, `F4` | Edit the file; on a folder or `..`, create a new text file |
 | `M` · `P` | Music box · pause or resume the tune |
@@ -55,6 +55,7 @@ nothing is tagged, and copy or move towards the folder of the other panel.
 | `D`, `F8`, `Delete` | Delete |
 | `A`, `F2` | Attributes |
 | `S`, `F9` | Sort: name, extension, size, date, disk order |
+| `F` | Floppy tools: read to an image, write an image, copy, format |
 | `L` | Drive list |
 | `O` | Options |
 | `Ctrl+R` | Re-read both panels (after changing a floppy) |
@@ -203,7 +204,79 @@ files are not deleted; the folders that contain them stay.
 then **O** (OK) to apply it to the selected or tagged files. Folders are
 left as they are.
 
-## 11. Disk errors
+## 11. Disk images and archives
+
+RETURN on one of these files opens it like a folder:
+
+| Kind | Files | What TOSFC reads |
+|---|---|---|
+| Floppy images | `.ST`, `.MSA` | FAT12 floppies of any size up to 11 sectors and 86 tracks; MSA tracks compressed or not |
+| LHA archives | `.LZH`, `.LHA` | Methods `-lh0-` (stored) and `-lh5-`, headers of level 0, 1 and 2, folders |
+| ZIP archives | `.ZIP` | Stored and deflated files, folders |
+| ARC archives | `.ARC` | Methods 1 to 4 (stored, packed, squeezed) and 8, 9 (crunched, squashed) |
+
+The path at the top shows where you are (`A:\DEMO\ARCHIVES\TEXTS.LZH\TEXTS\`);
+on `..` at the top the info line describes the file, and the bottom line
+says **Read-only**. ESC at the top closes it and selects it again.
+
+- **Copy out** with **C** (or F5): files and whole folders, to the folder in
+  the other panel. It is the ordinary copy — created only where nothing
+  exists, read back and compared — and every file from an archive is checked
+  against the checksum stored with it (CRC-16 or CRC-32) before a byte is
+  written.
+- **View and play** from inside: texts, pictures and music open with RETURN
+  as they do on a disk.
+- **Read-only**: move, delete, rename, make folder, attributes, edit, and
+  copying *into* an image or archive are refused with a message.
+- **Names**: long or odd names are shown in 8.3, in capitals, with characters
+  GEMDOS refuses replaced by `_`; two names that would clash get `~1`, `~2`.
+- **Not handled**: encrypted ZIP entries, other compression methods (listed,
+  but copying them says *Compression method not supported*), an archive
+  inside an archive, and more than 1,024 entries. A damaged file says
+  *Image or archive damaged* and nothing is written. If the image or archive
+  changes on disk while it is open (replaced from the other panel, another
+  floppy inserted), TOSFC refuses to read it until you open it again.
+- **Memory**: a file inside an archive is unpacked in memory, so it must fit
+  in free memory (about 150 KB on a 520 ST). Floppy images are read sector
+  by sector and have no such limit.
+
+## 12. Floppy tools
+
+**F** opens the floppy tools:
+
+- **Read** — makes an image of a floppy: choose the drive, check the size
+  shown (from the floppy's boot sector) and give the image a name
+  (`DISK.ST`). The image is written to the folder of the other panel, with
+  the same care as a copy: never over an existing file without asking, read
+  back and compared with the floppy (a floppy that reads differently twice is
+  reported). The other panel must not be on the floppy being read.
+- **Write** — writes the `.ST` or `.MSA` image selected in the active panel
+  to a floppy. Each track is formatted to the image's layout, written, read
+  back and compared. The image must not be on the floppy it is written to.
+- **Dup** — copies a whole floppy. With two drives, choose A: to B: or B: to
+  A:. With one drive, TOSFC reads as much of the source as memory holds
+  (a few passes on a 520 ST, two with 1 MB) and asks you to swap the
+  source and target floppies until it is done. It checks each floppy you insert: if the source
+  is still in the drive when it wants the target, it asks again.
+- **Format** — 720 KB (9 sectors, 2 sides), 800 KB (10 sectors), 880 KB
+  (11 sectors; not every drive manages it) or 360 KB (single-sided). The new
+  floppy gets a fresh serial number, so GEMDOS never mistakes it for another.
+
+Protection:
+
+- The floppy TOSFC was started from is never written to, formatted or copied
+  over, whatever drive it is in.
+- Every destructive command names the drive and asks first; the default
+  button is Cancel.
+- Track 0 (boot sector and FAT) is written last. If you stop with ESC, or an
+  error happens, TOSFC says the floppy is incomplete: it will not look like a
+  good copy.
+- After writing, GEMDOS is made to read the floppy afresh, so the panels show
+  what is really on it.
+- A disk copy with one drive cannot tell the source from an earlier copy of
+  it (their boot sectors are identical): format such a target first.
+
+## 13. Disk errors
 
 When a floppy is write-protected, missing or unreadable, TOSFC shows the
 error and the drive with **Retry** and **Cancel**. Cancel lets the current
@@ -211,7 +284,7 @@ operation fail cleanly: files it created are removed and replaced files
 are put back. On a single-drive machine, TOSFC asks you to insert the
 disk for B: when needed.
 
-## 12. Options
+## 14. Options
 
 **O** opens the options:
 
@@ -222,10 +295,11 @@ disk for B: when needed.
   on the program's own drive reopen next time; TOSFC never asks for another
   floppy at start-up.
 
-## 13. Limits
+## 15. Limits
 
 - 1,024 entries per panel; beyond that the panel says so.
 - Folders nested 16 deep at most, paths of 127 characters.
 - The editor holds files up to the free memory (about 150 KB on a 520 ST).
-- Disk images, archives and program launching are planned for the next
-  versions.
+- Inside an archive, a file must fit in free memory to be viewed or copied.
+- Creating archives and writing into images are not planned; program
+  launching and tools are for the next versions.

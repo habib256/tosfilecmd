@@ -49,8 +49,10 @@ def readme(version):
         "  C / V    copy / move            R       rename\r\n"
         "  D        delete                 K       make a folder\r\n"
         "  A        attributes             S       sort\r\n"
-        "  ?        help                   Q       quit\r\n\r\n"
+        "  F        floppy tools           ?       help\r\n"
+        "  Q        quit\r\n\r\n"
         "The DEMO folder is there to be copied, moved, renamed and deleted.\r\n"
+        "RETURN on a file in DEMO\\ARCHIVES opens it like a folder.\r\n"
         "Free software under the GNU GPL v3.\r\n" % version
     ).encode("ascii")
 

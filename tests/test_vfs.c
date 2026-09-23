@@ -265,6 +265,19 @@ static void t_bad_images(void)
         vfs_close(v);
     }
     free(img);
+    /* Boucle dans la chaine d'un fichier de quelques clusters : refuse a
+     * l'ouverture, rien de copie. */
+    img = slurp("LOOP.ST", &n);
+    fd_put("C:\\LOOP.ST", img, n, 0);
+    CHECK(vfs_open(&v, "C:\\LOOP.ST", "C:\\LOOP.ST\\") == 0);
+    if (v) {
+        const SOURCE *s = vfs_source(v);
+        CHECK(s->open(s->ctx, "C:\\LOOP.ST\\BIG.BIN") == TE_BADARC);
+        CHECK(s->open(s->ctx, "C:\\LOOP.ST\\README.TXT") >= 0);
+        s->close(s->ctx, 0);
+        vfs_close(v);
+    }
+    free(img);
     msa = slurp("IMG.MSA", &n);
     fd_put("C:\\T.MSA", msa, n / 2, 0);              /* tronque */
     CHECK(vfs_open(&v, "C:\\T.MSA", "C:\\T.MSA\\") != 0);

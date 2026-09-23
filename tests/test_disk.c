@@ -306,6 +306,7 @@ static int cb_insert(DISK *d, int which, int dev, int again)
 {
     ins_calls++;
     if (ins_cancel_at && ins_calls >= ins_cancel_at) return 0;
+    if (ins_calls > 50) return 0;                             /* jamais : on tournerait en rond */
     if (which == 1 && ins_wrong > 0) {                        /* l'utilisateur n'a pas change */
         ins_wrong--;
         fd_drive[dev] = src_k;

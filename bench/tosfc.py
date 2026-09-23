@@ -81,16 +81,32 @@ class TOSFC(NeoST):
     def boot(self, frames=4000):
         if not self.wait_for("╚", frames):
             raise BenchError("TOSFC did not show its panels")
-        self.settle()
+        self.idle()
         self.booted = True
+
+    def idle(self, frames=30000):
+        """Attend que TOSFC attende l'utilisateur : son compteur de sondages
+        sans evenement (in_idle_polls) doit repartir, sur plusieurs trames."""
+        waited = 0
+        self.run(4)                      # que la touche envoyee soit lue
+        last = self.var("in_idle_polls", 4, signed=False)
+        while waited < frames:
+            self.run(3)
+            waited += 3
+            now = self.var("in_idle_polls", 4, signed=False)
+            if now >= last + 2:
+                self.run(3)              # la derniere image est dessinee
+                return
+            last = now
+        raise BenchError("TOSFC still busy after %d frames; screen:\n%s" % (frames, self.text()))
 
     def hit(self, name, **kw):
         self.press(name, **kw)
-        self.settle()
+        self.idle()
 
     def letter(self, c):
         self.type(c)
-        self.settle()
+        self.idle()
 
     # ---- lecture de l'ecran ----
     def panel(self, side):
@@ -116,21 +132,36 @@ class TOSFC(NeoST):
     def active(self):
         return 0 if self.panel(0)["active"] else 1
 
-    def dialog(self):
-        """(titre, lignes) de la boite ouverte, ou None."""
+    def dialogs(self):
+        """Toutes les boites visibles : [(titre, lignes)]."""
         rows, att = self.screen(), self.attrs()
+        out = []
         for y in range(25):
             for x in range(80):
-                if rows[y][x] == "╔" and att[y * 80 + x] == A_DIALOG:
-                    x1 = rows[y].index("╗", x)
+                if rows[y][x] != "╔" or att[y * 80 + x] != A_DIALOG:
+                    continue
+                # Le coin droit, sans croiser le coin d'une autre boite.
+                x1 = x + 1
+                while x1 < 80 and rows[y][x1] not in "╗╔":
+                    x1 += 1
+                if x1 < 80 and rows[y][x1] == "╗":
                     title = rows[y][x + 1:x1].strip("═ ")
                     lines = []
                     for yy in range(y + 1, 25):
                         if rows[yy][x] == "╚":
                             break
-                        lines.append(rows[yy][x + 1:x1].strip())
-                    return title, [l for l in lines if l]
-        return None
+                        lines.append(rows[yy][x + 1:x1].strip("║ "))
+                    out.append((title, [ln for ln in lines if ln]))
+        return out
+
+    def dialog(self):
+        """La boite au premier plan : une question ou une erreur l'emporte
+        sur la barre de progression qu'elle recouvre."""
+        boxes = self.dialogs()
+        for b in boxes:
+            if b[0] not in ("Copying", "Moving", "Deleting"):
+                return b
+        return boxes[0] if boxes else None
 
     def dialog_text(self):
         d = self.dialog()
@@ -151,8 +182,7 @@ class TOSFC(NeoST):
             if p["cursor"] is not None and p["entries"][p["cursor"]] == name:
                 return True
             before = (p["entries"], p["cursor"])
-            self.press("DOWN")
-            self.settle(3)
+            self.hit("DOWN")
             p2 = self.panel(side)
             if (p2["entries"], p2["cursor"]) == before:
                 break
@@ -160,8 +190,19 @@ class TOSFC(NeoST):
         raise BenchError("%s not found in panel %d: %s" % (name, side, self.panel(side)))
 
     def open(self, side, name):
+        """Ouvre un dossier ou un lecteur : l'ecran ne bouge pas pendant
+        l'acces disque, on attend donc le nouveau chemin (ou une boite)."""
         self.select(side, name)
         self.hit("RETURN")
+
+    def until(self, cond, frames=6000, step=5):
+        waited = 0
+        while waited < frames:
+            if cond():
+                return True
+            self.run(step)
+            waited += step
+        raise BenchError("condition not met after %d frames; screen:\n%s" % (frames, self.text()))
 
     def go(self, side, path):
         """Ouvre path ("C:\\DIR\\SUB\\") dans le panneau side."""
@@ -190,17 +231,9 @@ class TOSFC(NeoST):
             waited += 10
         raise BenchError("dialog %r never appeared; screen:\n%s" % (title, self.text()))
 
-    def wait_idle(self, frames=20000):
-        """Attend la fin d'une operation : plus de boite 'Copying'/'Moving'/..."""
-        waited = 0
-        while waited < frames:
-            d = self.dialog()
-            if not d or d[0] not in ("Copying", "Moving", "Deleting"):
-                self.settle()
-                return
-            self.run(20)
-            waited += 20
-        raise BenchError("operation still running after %d frames" % frames)
+    def wait_idle(self, frames=30000):
+        """Attend la fin d'une operation (ou la boite qui l'interrompt)."""
+        self.idle(frames)
 
 
 def host_find(root, path):

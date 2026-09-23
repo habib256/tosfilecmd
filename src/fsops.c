@@ -21,6 +21,9 @@
 #define MAX_DEPTH  16
 #define ARENA_ENTRIES 640
 #define BAK_NAME   "TOSFC.BAK"
+/* Un bloc par lecture : environ une seconde de disquette, pour que ESC et
+ * la barre de progression repondent pendant une longue copie. */
+#define CHUNK      32768L
 
 /* ---- Noms et chemins ---- */
 
@@ -147,7 +150,7 @@ long ops_begin(OPS *o)
     avail = sys_avail();
     /* On laisse 32 Ko au systeme (tampons GEMDOS, accessoires). */
     want = avail - 32768L;
-    if (want > 262144L + arena_bytes) want = 262144L + arena_bytes;
+    if (want > 2 * CHUNK + arena_bytes) want = 2 * CHUNK + arena_bytes;
     if (want < 8192L + arena_bytes) return ENSMEM;
     want &= ~15L;
     o->block = sys_alloc(want);
@@ -298,6 +301,7 @@ static int decide(OPS *o, int q, const char *path, const FINFO *s, const FINFO *
 static long compare_files(OPS *o, const char *a, const char *b)
 {
     long ha, hb, na, nb, half = o->bufsize / 2, r = 0;
+    if (half > CHUNK) half = CHUNK;
     char *ba = o->buf, *bb = o->buf + half;
 
     ha = sys_open(a, 0);
@@ -358,6 +362,7 @@ static long write_copy(OPS *o, const char *src, const char *dst, const FINFO *sf
                        int verify)
 {
     long hs, hd, n, w, r = 0;
+    long chunk = o->bufsize > CHUNK ? CHUNK : o->bufsize;
     FINFO chk;
 
     /* Creation exclusive : GEMDOS n'en a pas, on sonde juste avant. */
@@ -369,7 +374,7 @@ static long write_copy(OPS *o, const char *src, const char *dst, const FINFO *sf
     if (hd < 0) { sys_close((int)hs); return hd; }
 
     for (;;) {
-        n = sys_read((int)hs, o->bufsize, o->buf);
+        n = sys_read((int)hs, chunk, o->buf);
         if (n < 0) { r = n; break; }
         if (n == 0) break;
         w = sys_write((int)hd, n, o->buf);

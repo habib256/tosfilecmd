@@ -175,7 +175,11 @@ static void reload_both(void)
 static void summary(const char *verb)
 {
     char l1[64], l2[64], num[12];
-    if (!ops.errors && !ops.skipped && !ops.warnings) return;
+    /* Les fichiers passes l'ont ete a la demande de l'utilisateur : seuls
+     * les erreurs et avertissements meritent un compte rendu. */
+    if (!ops.errors && !ops.warnings) return;
+    /* Un seul element : sa boite d'erreur a deja tout dit. */
+    if (ops.files_total + ops.dirs_total <= 1) return;
     fmt_ulong(num, (unsigned long)ops.files_done, 0);
     str_copy(l1, num, sizeof l1);
     str_add(l1, " file(s) ", sizeof l1);

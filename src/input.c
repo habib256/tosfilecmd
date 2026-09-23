@@ -13,6 +13,11 @@
 extern short mouse_dx, mouse_dy, mouse_buttons;
 extern void mouse_handler(void);
 
+/* Nombre de sondages restes sans evenement : il n'augmente que lorsque le
+ * programme attend l'utilisateur (panneaux ou boite de dialogue). Les bancs
+ * s'en servent pour savoir qu'une operation est finie. */
+unsigned long in_idle_polls;
+
 static KBDVECS *kbv;
 static void (*old_mousevec)(void);
 static short px, py, shown, last_buttons;
@@ -84,7 +89,9 @@ void in_poll(EVENT *e)
         e->scan = (short)((k >> 16) & 0xff);
         e->ascii = (short)(k & 0xff);
         e->shift = (short)(Kbshift(-1) & 0x0f);
+        return;
     }
+    in_idle_polls++;
 }
 
 void in_wait(EVENT *e)

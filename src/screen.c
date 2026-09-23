@@ -47,7 +47,7 @@ static const unsigned char att_color[A_COUNT] = {
 };
 /* Monochrome : 1 = inverse video. */
 static const unsigned char att_mono_rev[A_COUNT] = {
-    0, 0, 0, 1, 1, 0, 1, 0, 1, 1
+    0, 0, 0, 1, 1, 0, 1, 0, 1, 0
 };
 static const short palette[4] = { 0x004, 0x066, 0x760, 0x777 };
 

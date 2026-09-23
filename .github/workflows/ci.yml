@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: brew install m68k-elf-gcc
+      - name: Build (size and stack budgets checked)
+        run: make
+      - name: Host tests
+        run: make test
+      - name: Disks
+        run: make disk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tosfc-disks
+          path: |
+            dist/*.st
+            build/TOSFC.PRG
+
+  # Les bancs ont besoin de NeoST : ils ne tournent que sur un executeur
+  # auto-heberge qui l'a, designe par la variable de depot NEOST_RUNNER.
+  bench:
+    needs: build
+    if: vars.NEOST_RUNNER != ''
+    runs-on: ${{ vars.NEOST_RUNNER }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make disk && make bench

@@ -23,21 +23,24 @@ progression et ESC, souris, aide, préférences, erreurs critiques.
 - **Sélection par la souris** : glisser pour marquer une série.
 - **Lancer un programme** (`.PRG`, `.TOS`, `.TTP`) depuis un panneau, et
   revenir à TOSFC ensuite.
+- Archives LHA : `src/lzh.c` sait déjà lire les en-têtes et décompresser
+  `-lh5-` (pour les YM) ; l'ouverture d'un `.LZH` comme dossier est pour J3.
 
-## J2 — visionneuses et éditeur
+## J2 — visionneuses et éditeur ✅ (0.2.0, 0.3.0)
 
-- ✅ Texte (avec 1st Word / 1st Word Plus) et hexadécimal, recherche (0.2.0).
-- ✅ Images plein écran : Degas (PI1-3, PC1-3), NEOchrome ; album ;
-  conversions couleur ↔ monochrome (0.2.0).
-- Spectrum 512 (SPU/SPC) : 512 couleurs, palette réécrite à chaque ligne
-  par une routine synchronisée au cycle près.
-- Tiny, IFF ILBM et images STE (palette 4 bits) ; saisir une copie d'écran.
-- Éditeur de texte.
-- Musique SNDH et YM en tâche de fond (interruption Timer), `P` pour la pause.
-- Lecture par fenêtres pour les fichiers plus grands que la mémoire libre.
-- La place : 111,5 Ko chargés sur 112 Ko de budget. Avant J3, alléger la
-  BSS (sauvegardes d'écran des boîtes, 24 Ko ; tableau des éléments, 24 Ko)
-  ou charger les outils en surcouches.
+Texte, 1st Word, hexadécimal, recherche ; Degas, Degas Elite, NEOchrome,
+Spectrum 512 ; éditeur ; musique YM et SNDH en tâche de fond.
+
+### Plus tard (hors du plan initial de J2)
+
+- Images Tiny, IFF ILBM, palettes STE 4 bits ; copie d'écran.
+- Effets spéciaux des YM4-YM6 (digidrums, voix SID).
+- Lecture par fenêtres des fichiers plus grands que la mémoire libre (texte, édition).
+- Musique pendant l'affichage Spectrum 512 : la routine garde le processeur,
+  le morceau hoquette ; la routine pourrait appeler elle-même le lecteur
+  pendant les lignes de bordure.
+- Le TOS d'Atari (1.00 à 2.06) et une vraie machine, pour tout J2 aussi
+  (la routine Spectrum est réglée sur l'émulation de NeoST, fidèle à Hatari).
 
 ## J3 — images disque et archives
 

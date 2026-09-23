@@ -39,20 +39,10 @@ int eb_load(EDBUF *b, const unsigned char *data, long size, char *mem, long memc
     b->gap0 = 0;
     b->gap1 = memcap - n;
     b->modified = 0;
+    b->nlines = lf + crlf + cr;
     return EB_OK;
 }
 
-long eb_len(const EDBUF *b)
-{
-    return b->cap - (b->gap1 - b->gap0);
-}
-
-int eb_at(const EDBUF *b, long pos)
-{
-    if (pos < 0 || pos >= eb_len(b)) return -1;
-    if (pos < b->gap0) return (unsigned char)b->buf[pos];
-    return (unsigned char)b->buf[pos + (b->gap1 - b->gap0)];
-}
 
 static void move_gap(EDBUF *b, long pos)
 {
@@ -77,6 +67,7 @@ int eb_insert(EDBUF *b, long pos, const char *s, long n)
     memcpy(b->buf + b->gap0, s, n);
     b->gap0 += n;
     if (n) b->modified = 1;
+    while (n-- > 0) if (*s++ == '\n') b->nlines++;
     return EB_OK;
 }
 
@@ -86,21 +77,49 @@ void eb_delete(EDBUF *b, long pos, long n)
     if (pos < 0 || pos >= len || n <= 0) return;
     if (pos + n > len) n = len - pos;
     move_gap(b, pos);
+    {
+        long i;
+        for (i = 0; i < n; i++) if (b->buf[b->gap1 + i] == '\n') b->nlines--;
+    }
     b->gap1 += n;
     b->modified = 1;
 }
 
+/* Les deux recherches parcourent directement les deux morceaux du tampon
+ * (avant et apres le trou) : c'est le coeur de chaque deplacement. */
 long eb_line_start(const EDBUF *b, long pos)
 {
-    while (pos > 0 && eb_at(b, pos - 1) != '\n') pos--;
-    return pos;
+    long gap = b->gap1 - b->gap0;
+    const char *s;
+    if (pos > eb_len(b)) pos = eb_len(b);
+    if (pos > b->gap0) {
+        const char *lo = b->buf + b->gap1;
+        s = b->buf + pos + gap;
+        while (s > lo && s[-1] != '\n') s--;
+        if (s > lo) return (long)(s - b->buf) - gap;
+        pos = b->gap0;
+    }
+    s = b->buf + pos;
+    while (s > b->buf && s[-1] != '\n') s--;
+    return (long)(s - b->buf);
 }
 
 long eb_line_end(const EDBUF *b, long pos)
 {
-    long len = eb_len(b);
-    while (pos < len && eb_at(b, pos) != '\n') pos++;
-    return pos;
+    long gap = b->gap1 - b->gap0;
+    const char *s, *e;
+    if (pos < 0) pos = 0;
+    if (pos < b->gap0) {
+        s = b->buf + pos;
+        e = b->buf + b->gap0;
+        while (s < e && *s != '\n') s++;
+        if (s < e) return (long)(s - b->buf);
+        pos = b->gap0;
+    }
+    s = b->buf + pos + gap;
+    e = b->buf + b->cap;
+    while (s < e && *s != '\n') s++;
+    return (long)(s - b->buf) - gap;
 }
 
 long eb_next_line(const EDBUF *b, long pos)
@@ -149,11 +168,7 @@ long eb_pos_at_col(const EDBUF *b, long start, int col)
 
 long eb_file_size(const EDBUF *b)
 {
-    long n = eb_len(b), i;
-    if (b->eol == EOL_CRLF)
-        for (i = 0; i < eb_len(b); i++)
-            if (eb_at(b, i) == '\n') n++;
-    return n;
+    return eb_len(b) + (b->eol == EOL_CRLF ? b->nlines : 0);
 }
 
 long eb_export(const EDBUF *b, long at, char *out, long cap)

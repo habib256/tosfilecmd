@@ -39,7 +39,7 @@ def session(c, label, disk, **kw):
         rez_before = st.peek(0x44C, 1)[0]
         st.letter("q")
         c.check(st.dialog() and st.dialog()[0] == "Quit", "%s: Q asks before quitting" % label)
-        st.hit("RETURN")
+        st.press("RETURN")   # TOSFC s'en va : pas d'attente
         st.run(300)
         c.check(not st.running(), "%s: TOSFC has returned to the system" % label)
         # Un plantage du TOS affiche "Panic" / "Crash" ; la sortie doit etre propre.

@@ -11,6 +11,7 @@
 #include "prefs.h"
 #include "view.h"
 #include "edit.h"
+#include "music.h"
 #include "picture.h"
 #include "version.h"
 
@@ -29,7 +30,8 @@ static int quit;
 
 typedef struct { const char *key, *label; short cmd; } KEYBAR;
 enum { C_HELP, C_COPY, C_MOVE, C_REN, C_DEL, C_MKDIR, C_ATTR, C_SORT,
-       C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_EDIT, C_NCMD };
+       C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_EDIT, C_MUSIC,
+       C_PAUSE, C_NCMD };
 /* 80 colonnes tout juste : les libelles sont courts. */
 static const KEYBAR keybar[] = {
     { "?", "Help", C_HELP }, { "T", "View", C_TEXT }, { "I", "Pic", C_IMAGE },
@@ -54,6 +56,9 @@ static void draw_keybar(void)
     }
     keybar_x[NKEYBAR] = (short)x;
     scr_fill(x, 24, SCR_COLS - x, ' ', A_NORMAL);
+    /* Une note au bout de la barre : musique en cours (clignote en pause). */
+    if (music_state() == MUS_PLAYING) scr_putc(SCR_COLS - 1, 24, G_NOTE, A_TITLE);
+    else if (music_state() == MUS_PAUSED) scr_putc(SCR_COLS - 1, 24, G_NOTE, A_FRAME);
 }
 
 static void draw(void)
@@ -431,6 +436,7 @@ static void cmd_help(void)
         "RETURN, F3   view a file: pictures full screen, others as text",
         "T  I  H      read as text, show as a picture, show in hex",
         "E  F4        edit a text file (on a folder: a new file)",
+        "M  P         music box, pause (RETURN on .YM/.SND plays it)",
         "C  F5        copy to the other panel",
         "V  F6        move to the other panel",
         "R            rename               K  F7    make a folder",
@@ -503,6 +509,42 @@ static void cmd_options(void)
     }
 }
 
+static void cmd_music(void)
+{
+    static const char *const bt[] = { "Pause", "Stop", "Prev", "Next", "OK" };
+    const char *lines[4];
+    char l2[64], l3[64], num[12];
+    int r;
+    for (;;) {
+        if (music_state() == MUS_NONE) {
+            ui_message("Music", "Nothing is playing. RETURN on a .YM, .SND",
+                       "or .SNDH file starts a tune.");
+            return;
+        }
+        lines[0] = music_title()[0] ? music_title() : "(no title)";
+        lines[1] = music_author()[0] ? music_author() : "(unknown author)";
+        str_copy(l2, music_format(), sizeof l2);
+        str_add(l2, "   tune ", sizeof l2);
+        fmt_ulong(num, (unsigned long)music_tune_number(), 0);
+        str_add(l2, num, sizeof l2);
+        str_add(l2, " of ", sizeof l2);
+        fmt_ulong(num, (unsigned long)music_tunes(), 0);
+        str_add(l2, num, sizeof l2);
+        lines[2] = l2;
+        str_copy(l3, music_state() == MUS_PAUSED ? "Paused at " : "Playing: ", sizeof l3);
+        fmt_ulong(num, music_seconds(), 0);
+        str_add(l3, num, sizeof l3);
+        str_add(l3, " s", sizeof l3);
+        lines[3] = l3;
+        r = ui_dialog("Music", lines, 4, bt, 5, 4);
+        if (r == 0) music_pause();
+        else if (r == 1) { music_stop(); return; }
+        else if (r == 2) music_tune(-1);
+        else if (r == 3) music_tune(1);
+        else return;
+    }
+}
+
 static void do_cmd(int c)
 {
     switch (c) {
@@ -528,12 +570,28 @@ static void do_cmd(int c)
         break;
     case C_VIEW: {
         FINFO *f = panel_current(&panels[active]);
-        if (f && !(f->attr & FA_DIR) && !panel_is_drives(&panels[active]))
-            do_cmd(pic_is_picture_name(f->name) ? C_IMAGE : C_TEXT);
+        if (f && !(f->attr & FA_DIR) && !panel_is_drives(&panels[active])) {
+            if (music_is_name(f->name)) {
+                long r = music_play(panels[active].path, f->name);
+                if (r) ui_error("Cannot play", f->name, r);
+            } else {
+                do_cmd(pic_is_picture_name(f->name) ? C_IMAGE : C_TEXT);
+            }
+        }
         break;
     }
+    case C_PAUSE: music_pause(); break;
+    case C_MUSIC: cmd_music(); break;
     case C_QUIT:
-        if (ui_confirm("Quit", "Leave " TOSFC_NAME "?", 0, 1)) quit = 1;
+        if (ui_confirm("Quit", "Leave " TOSFC_NAME "?", 0, 1)) {
+            music_stop();
+            if (music_hooked()) {
+                ui_message("Quit", "Another program hooked the timer after the",
+                           "music: TOSFC must stay until it unhooks.");
+                break;
+            }
+            quit = 1;
+        }
         break;
     }
 }
@@ -604,6 +662,8 @@ static void on_key(EVENT *e)
         return;
     }
     if (c == 'H') { do_cmd(C_HEX); return; }
+    if (c == 'P') { do_cmd(C_PAUSE); return; }
+    if (c == 'M') { do_cmd(C_MUSIC); return; }
     for (i = 0; i < NKEYBAR; i++)
         if (c == keybar[i].key[0]) { do_cmd(keybar[i].cmd); return; }
 }
@@ -745,6 +805,7 @@ int main(void)
         else if (e.type == EV_RCLICK) on_click(&e, 1);
     }
 
+    music_stop();
     ui_critic_remove();
     in_exit();
     scr_exit();

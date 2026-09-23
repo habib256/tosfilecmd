@@ -98,7 +98,7 @@ def main():
 
         # ---- lecteur vide ---- (fin de la premiere session : B: va changer)
         st.letter("q")
-        st.hit("RETURN")
+        st.press("RETURN")   # TOSFC s'en va : pas d'attente
         st.run(100)
     finally:
         st.close()
@@ -150,7 +150,7 @@ def main():
             st.hit("RETURN")
         c.check(st.panel(1)["path"] == "Drives", "back on the drive list")
         st.letter("q")
-        st.hit("RETURN")
+        st.press("RETURN")   # TOSFC s'en va : pas d'attente
         st.run(100)
     finally:
         st.close()

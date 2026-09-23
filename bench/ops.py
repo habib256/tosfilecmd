@@ -195,7 +195,7 @@ def main():
 
         # ---- relecture de la disquette ----
         st.letter("q")
-        st.hit("RETURN")
+        st.press("RETURN")   # TOSFC s'en va : pas d'attente
         st.run(200)
     finally:
         st.close()

@@ -34,7 +34,7 @@ def main():
         st.hit("ESC")
         c.check("HIDDEN.TXT" not in st.panel(0)["entries"], "hidden files no longer listed")
         st.letter("q")
-        st.hit("RETURN")
+        st.press("RETURN")   # TOSFC s'en va : pas d'attente
         st.run(200)
     finally:
         st.close()

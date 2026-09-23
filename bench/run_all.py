@@ -15,7 +15,8 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BENCHES = ["smoke", "ops", "data_safety", "mouse", "prefs", "viewers", "memory"]
+BENCHES = ["smoke", "ops", "data_safety", "mouse", "prefs", "viewers", "editor", "music",
+           "memory"]
 
 
 def main():

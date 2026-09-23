@@ -10,7 +10,7 @@
 # Toolchain: m68k-elf-gcc (Homebrew: brew install m68k-elf-gcc) and Python 3.
 # No C library: src/libc.c and the TOS calls of src/tos.h are all there is.
 
-VERSION = 0.2.0
+VERSION = 0.3.0
 
 CROSS   ?= m68k-elf-
 CC      = $(CROSS)gcc
@@ -29,7 +29,8 @@ LDFLAGS = -mcpu=68000 -nostdlib -T src/tosfc.ld -Wl,--emit-relocs \
           -Wl,-Map,$(BUILD)/tosfc.map -Wl,--no-warn-rwx-segments
 
 OBJS = crt0.o main.o screen.o input.o ui.o panel.o fsops.o prefs.o view.o picture.o \
-       textview.o edit.o edbuf.o spec512.o sys_tos.o libc.o
+       textview.o edit.o edbuf.o spec512.o music.o musicisr.o lzh.o ice.o ym.o sndh.o \
+       sys_tos.o libc.o
 OBJS := $(addprefix $(BUILD)/,$(OBJS))
 HDRS = $(wildcard src/*.h)
 
@@ -52,8 +53,22 @@ $(BUILD)/TOSFC.PRG: $(BUILD)/tosfc.elf tools/elf2prg.py tools/check_budget.py
 	$(NM) -n $< > $(BUILD)/tosfc.sym
 	$(PYTHON) tools/check_budget.py $@ $(BUILD)
 
-disk: $(BUILD)/TOSFC.PRG tools/mkdisk.py tools/fat12.py
-	$(PYTHON) tools/mkdisk.py $(VERSION) $(BUILD)/TOSFC.PRG $(DIST)
+# La musique de demonstration (tools/chiptune.py) : un YM5 en LHA -lh5-, et
+# un SNDH assemble ici, en clair et compresse ICE! par unice68.
+$(BUILD)/WELCOME.YM: tools/chiptune.py tools/lha.py | $(BUILD)
+	$(PYTHON) tools/chiptune.py ym $@
+$(BUILD)/PLAIN.SND: tools/chiptune.py | $(BUILD)
+	$(PYTHON) tools/chiptune.py asm $(BUILD)/demo_sndh.S
+	$(CC) -mcpu=68000 -c $(BUILD)/demo_sndh.S -o $(BUILD)/demo_sndh.o
+	$(CROSS)objcopy -O binary -j .text $(BUILD)/demo_sndh.o $@
+	$(NM) $(BUILD)/demo_sndh.o > $(BUILD)/demo_sndh.sym
+$(BUILD)/TOSFC.SND: $(BUILD)/PLAIN.SND $(BUILD)/host/icetool
+	$(BUILD)/host/icetool p $< $@
+
+MUSIC_DEMO = $(BUILD)/WELCOME.YM $(BUILD)/PLAIN.SND $(BUILD)/TOSFC.SND
+
+disk: $(BUILD)/TOSFC.PRG tools/mkdisk.py tools/fat12.py $(MUSIC_DEMO)
+	$(PYTHON) tools/mkdisk.py $(VERSION) $(BUILD)/TOSFC.PRG $(DIST) $(BUILD)
 
 HOST_CFLAGS = -std=c99 -Wall -Wextra -g -DTOSFC_HOST -fsanitize=address,undefined
 
@@ -74,12 +89,35 @@ $(BUILD)/host/test_edit: tests/test_edit.c tests/fakedos.c src/edbuf.c src/fsops
                          $(HDRS) | $(BUILD)
 	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_edit.c tests/fakedos.c src/edbuf.c src/fsops.c src/libc.c
 
+# unice68 (sc68, GPL v3+) : compresseur et decompresseur ICE! de reference,
+# pour les vecteurs de test et la disquette de demonstration seulement.
+ICE_SRC = tests/ext/unice68
+$(BUILD)/host/icetool: $(ICE_SRC)/icetool.c $(ICE_SRC)/unice68_pack.c \
+                       $(ICE_SRC)/unice68_unpack.c $(ICE_SRC)/unice68_version.c | $(BUILD)
+	$(HOSTCC) -O2 -w -DNDEBUG -include stdint.h -include assert.h \
+	    -DPACKAGE_NAME='"unice68"' -DPACKAGE_STRING='"unice68 2.0.0"' \
+	    -DPACKAGE_VERSION='"2.0.0"' -DPACKAGE_URL='"sc68"' -DPACKAGE_BUGREPORT='"sc68"' \
+	    -o $@ $(filter %.c,$^)
+
+MUSIC_SRC = src/lzh.c src/ice.c src/ym.c src/sndh.c src/libc.c
+$(BUILD)/host/test_music: tests/test_music.c $(MUSIC_SRC) $(HDRS) | $(BUILD)
+	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_music.c $(MUSIC_SRC)
+
+$(BUILD)/host/data/.stamp: tests/gen_lzh.py tools/lha.py $(BUILD)/host/icetool
+	$(PYTHON) tests/gen_lzh.py $(BUILD)/host/data
+	for f in $(BUILD)/host/data/lzh_*.bin; do \
+	    b=$$(basename $$f .bin); b=$${b#lzh_}; \
+	    [ -s $$f ] && $(BUILD)/host/icetool p $$f $(BUILD)/host/data/ice_$$b.ice; \
+	done; touch $@
+
 test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/host/test_view \
-      $(BUILD)/host/test_edit $(BUILD)/TOSFC.PRG
+      $(BUILD)/host/test_edit $(BUILD)/host/test_music $(BUILD)/host/data/.stamp $(BUILD)/TOSFC.PRG
 	$(BUILD)/host/test_fsops
 	$(BUILD)/host/test_prefs
 	$(BUILD)/host/test_view
 	$(BUILD)/host/test_edit
+	$(BUILD)/host/test_music $(BUILD)/host/data
+	$(PYTHON) tests/test_lha.py
 	$(PYTHON) tests/test_fat12.py
 	$(PYTHON) tests/test_elf2prg.py $(BUILD)
 

@@ -23,7 +23,27 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import stpic  # noqa: E402
 from ppm2png import read_ppm  # noqa: E402
 
-PICS = ["MANDEL.PC3", "RINGS.PC1", "STRIPES.PI2", "SUNSET.NEO", "TESTCARD.PI1"]
+PICS = ["MANDEL.PC3", "RAINBOW.SPC", "RAINBOW.SPU", "RINGS.PC1", "STRIPES.PI2",
+        "SUNSET.NEO", "TESTCARD.PI1"]
+
+
+def spectrum_matches(st, name, work):
+    """Chaque point de l'ecran Spectrum 512 (320 x 199) a exactement la
+    couleur que donne la formule du format : c'est la preuve que la routine
+    ecrit chaque registre de palette au bon cycle."""
+    bm, pals = stpic.decode_spectrum(name, image(DISK).read("A:\\DEMO\\PICTURES\\" + name))
+    exp = stpic.spectrum_rgb(bm, pals)
+    path = os.path.join(work, name + ".ppm")
+    st.shot(path)
+    w, h, px = read_ppm(path)
+    x0, y0 = 48, 29
+    bad = 0
+    for y in range(200):
+        for x in range(320):
+            i = ((y + y0) * w + x + x0) * 3
+            if tuple(px[i:i + 3]) != exp[y][x]:
+                bad += 1
+    return bad
 
 
 def screen_ram(st):
@@ -60,6 +80,13 @@ def pictures_colour(c, disk, work):
         for k, name in enumerate(PICS):
             if k:
                 st.hit("RIGHT")
+            if name.startswith("RAINBOW"):
+                st.run(10)
+                bad = spectrum_matches(st, name, work)
+                c.check(bad == 0, "colour: %s, all 64,000 points in their Spectrum 512 colour (%d off)"
+                        % (name, bad))
+                c.check(st.peek(0x44C, 1)[0] == 0, "colour: %s in low resolution" % name)
+                continue
             res, pal, bm = stpic.decode(name, img.read("A:\\DEMO\\PICTURES\\" + name))
             ram = screen_ram(st)
             shift = st.peek(0x44C, 1)[0]
@@ -82,13 +109,22 @@ def pictures_colour(c, disk, work):
         c.check(st.peek(0x44C, 1)[0] == 1 and p["path"] == "A:\\DEMO\\PICTURES\\",
                 "ESC brings back the panels in medium resolution")
         c.check(p["entries"][p["cursor"]] == PICS[-1], "the selection followed the album")
+        # Apres une image Spectrum, la souris doit repondre de nouveau.
+        st.select(0, "RAINBOW.SPC")
+        st.hit("RETURN")
+        st.hit("ESC")
+        x0 = st.var("ptr_x")
+        st.mouse(80, 0)
+        st.idle()
+        c.check(st.var("ptr_x") != x0, "the mouse works again after a Spectrum picture")
         st.select(0, "RINGS.PC1")
         st.hit("RETURN")
         res, pal, bm = stpic.decode("RINGS.PC1", img.read("A:\\DEMO\\PICTURES\\RINGS.PC1"))
         c.check(screen_ram(st) == bm, "RETURN on a picture shows it")
         st.hit("LEFT")
-        res, pal, bm = stpic.decode(PICS[0], img.read("A:\\DEMO\\PICTURES\\" + PICS[0]))
-        c.check(screen_ram(st) == stpic.mono_to_medium(bm), "Left goes to the previous picture")
+        st.run(10)
+        c.check(spectrum_matches(st, "RAINBOW.SPU", work) == 0,
+                "Left goes to the previous picture (a Spectrum one)")
         st.hit("ESC")
     finally:
         st.close()
@@ -100,6 +136,12 @@ def pictures_mono(c, disk):
     try:
         st.boot()
         st.go(0, "A:\\DEMO\\PICTURES\\")
+        st.select(0, "RAINBOW.SPC")
+        st.hit("RETURN")
+        bm, pals = stpic.decode_spectrum("RAINBOW.SPC", img.read("A:\\DEMO\\PICTURES\\RAINBOW.SPC"))
+        c.check(screen_ram(st) == stpic.spectrum_to_mono(bm, pals),
+                "mono: RAINBOW.SPC dithered point by point like the reference")
+        st.hit("ESC")
         for name in ("TESTCARD.PI1", "STRIPES.PI2", "MANDEL.PC3"):
             st.select(0, name)
             st.hit("RETURN")

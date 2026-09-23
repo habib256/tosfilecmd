@@ -125,19 +125,27 @@ static void draw(ED *e, const char *status)
     }
 }
 
-/* Garde le curseur visible : premiere ligne et premiere colonne. */
+/* Garde le curseur visible : premiere ligne et premiere colonne. Un saut
+ * lointain (fin du texte, page) remet la ligne du curseur en bas de l'ecran. */
 static void follow(ED *e)
 {
-    long ls = eb_line_start(&e->b, e->cur);
+    long ls = eb_line_start(&e->b, e->cur), q;
     int col = eb_col(&e->b, e->cur), n = 0;
-    long q;
 
-    if (ls < e->top) e->top = ls;
-    /* Le curseur a-t-il depasse la derniere ligne affichee ? */
-    for (q = e->top; q >= 0 && q < ls && n < ROWS; q = eb_next_line(&e->b, q)) n++;
-    while (n >= ROWS) {
-        e->top = eb_next_line(&e->b, e->top);
-        n--;
+    if (ls < e->top) {
+        e->top = ls;
+    } else {
+        for (q = e->top; q >= 0 && q < ls && n < ROWS; q = eb_next_line(&e->b, q)) n++;
+        if (q != ls || n >= ROWS) {
+            long t = ls;
+            int k;
+            for (k = 0; k < ROWS - 1; k++) {
+                long pl = eb_prev_line(&e->b, t);
+                if (pl < 0) break;
+                t = pl;
+            }
+            e->top = t;
+        }
     }
     if (col < e->left) e->left = col & ~7;
     if (col >= e->left + SCR_COLS) e->left = ((col - SCR_COLS + 8) + 7) & ~7;

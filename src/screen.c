@@ -138,8 +138,10 @@ static void make_glyphs(void)
         0x00, 0x01, 0x03, 0x06, 0xcc, 0x78, 0x30, 0x00 };
     static const unsigned char updir[8] = {
         0x10, 0x38, 0x7c, 0xfe, 0x38, 0x38, 0x38, 0x00 };
+    static const unsigned char note[8] = {
+        0x0c, 0x0e, 0x0b, 0x09, 0x08, 0x78, 0xf8, 0x70 };
 
-    for (c = 0x0f; c <= 0x1f; c++) memset(font + c * 16, 0, 16);
+    for (c = 0x0e; c <= 0x1f; c++) memset(font + c * 16, 0, 16);
 
     hline(G_DH, r1, 0, 7); hline(G_DH, r2, 0, 7);
     vline(G_DV, c1, 0, e); vline(G_DV, c2, 0, e);
@@ -169,6 +171,7 @@ static void make_glyphs(void)
         int s = r * 8 / H;
         font[G_CHECK * 16 + r] = check[s];
         font[G_UPDIR * 16 + r] = updir[s];
+        font[G_NOTE * 16 + r] = note[s];
         font[G_SHADE * 16 + r] = (r & 1) ? 0x55 : 0xaa;
         font[G_BLOCK * 16 + r] = 0xff;
     }

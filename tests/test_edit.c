@@ -85,6 +85,9 @@ static void t_editing(void)
     CHECK(eb_next_line(&b, 2) == 7 && eb_prev_line(&b, 8) == 0 && eb_prev_line(&b, 3) == -1);
     CHECK(eb_line_number(&b, 0) == 1 && eb_line_number(&b, 8) == 2 && eb_line_number(&b, 14) == 3);
     CHECK(eb_next_line(&b, eb_len(&b)) == -1);
+    CHECK(b.nlines == 3);
+    eb_delete(&b, 0, 8);                            /* ">> 1st\n" et le "s" */
+    CHECK(b.nlines == 2 && eb_file_size(&b) == n - 9);
     load(&b, "\tx\ty\n", 5);
     CHECK(eb_col(&b, 1) == 8 && eb_col(&b, 2) == 9 && eb_col(&b, 3) == 16);
     CHECK(eb_pos_at_col(&b, 0, 0) == 0 && eb_pos_at_col(&b, 0, 5) == 0);

@@ -53,6 +53,7 @@
 #define TE_BADDIR   -215L   /* nom illisible dans un repertoire */
 #define TE_NOTPIC   -216L   /* pas une image reconnue */
 #define TE_BADPIC   -217L   /* image tronquee ou incoherente */
+#define TE_BADMUS   -218L   /* morceau illisible (YM, SNDH) */
 
 /* Attributs FAT. */
 #define FA_RDONLY 0x01

@@ -2,7 +2,7 @@
 
 La conservation des données est une exigence centrale. Les instructions
 obligatoires pour les IA et les contributeurs se trouvent dans
-[AGENTS.md](../AGENTS.md). Ce document décrit, pour la version 0.2.0, ce que
+[AGENTS.md](../AGENTS.md). Ce document décrit, pour la version 0.3.0, ce que
 chaque opération peut écrire, comment elle se protège et comment c'est
 vérifié. Ce n'est ni une garantie contre toute panne matérielle, ni une
 preuve exhaustive de l'absence de défauts.
@@ -23,6 +23,8 @@ preuve exhaustive de l'absence de défauts.
 | Disquette protégée, lecteur vide | Boîte d'alerte du GEM par-dessus l'écran, ou pire, aucune | Gestionnaire `etv_critic` de TOSFC : Retry/Cancel, puis l'erreur remonte à l'opération qui nettoie. | `bench/data_safety.py` |
 | TOSFC.INF | Écrire sur une disquette que l'utilisateur n'a pas choisie ; fichier tronqué | Enregistrement **seulement sur demande** (Options, Save) ; écrit dans `TOSFC.NEW`, relu, puis remplace `TOSFC.INF`. Un `TOSFC.NEW` préexistant bloque. | `test_prefs`, `bench/prefs.py` |
 | Visionneuses (texte, images) | Fichier malformé qui ferait lire ou écrire hors des tampons ; erreur de lecture prise pour la fin | Lecture seule, aucun appel d'écriture. Décodeurs bornés (chaque répétition PackBits vérifiée contre la ligne et le fichier) ; erreur de lecture signalée à l'écran. | `test_view` (fichiers tronqués, 3000 fichiers aléatoires sous AddressSanitizer), `bench/viewers.py` (disquette identique au bit près après la session) |
+| Éditeur, enregistrement | Fichier tronqué par une écriture ratée ; édition d'une partie seulement ; octets modifiés sans que l'utilisateur y ait touché | N'ouvre que les fichiers lus en entier sans erreur, sans octet nul ni fins de ligne mélangées, hors 1st Word et lecture seule. Enregistre dans `TOSFC.$ED` (création exclusive), ferme, relit et compare ; l'original devient `TOSFC.BAK` puis est supprimé, et revient en place sur toute erreur. `TOSFC.$ED` ou `TOSFC.BAK` préexistants bloquent. En cas d'échec le texte reste ouvert. | `test_edit` (disque plein, erreurs d'écriture, de fermeture, de relecture, de renommage, corruption ; octets de l'original vérifiés), `bench/editor.py` (disquette protégée, fichier de 66 Ko réenregistré identique) |
+| Musique | Écrire le port A du YM2149 (sélection du lecteur de disquette) pendant une copie ; laisser une interruption pointer dans la mémoire libérée | Registres 0 à 13 seulement, registre 7 toujours avec ses bits de port à 1 ; le TOS masque les interruptions quand il touche au port A. Accroche XBRA retirée à l'arrêt et en quittant ; si un autre programme s'est accroché après TOSFC sans XBRA, TOSFC refuse de quitter plutôt que de laisser un vecteur pendant. Décompresseurs bornés. Un SNDH est un programme : un morceau fautif peut planter la machine (limite documentée). | `test_music`, `bench/music.py` (vecteur restauré, sortie propre pendant la lecture) |
 | Mémoire | Débordement de pile dans les données | Pile de 16 Ko réservée ; pire cas statique calculé au lien depuis le graphe d'appels de GCC (récursions comprises) ; creux réel mesuré par un banc. | `tools/check_budget.py`, `bench/memory.py` |
 
 ## Fichiers de récupération
@@ -51,10 +53,11 @@ l'écraseraient. Examiner ou copier son contenu avant de le renommer.
 - Tester sur une vraie machine : les bancs utilisent EmuTOS dans NeoST ;
   TOS 1.00 à 2.06 n'ont pas encore été essayés (voir [TODO.md](../TODO.md)).
 
-## Résultats de la version 0.2.0
+## Résultats de la version 0.3.0
 
 `make test` : **142** contrôles des opérations et **21** de TOSFC.INF sur le
-faux GEMDOS à pannes injectées, **73** des visionneuses, l'outil FAT12 (fsck compris) et la table de
+faux GEMDOS à pannes injectées, **73** des visionneuses, **95** de l'éditeur,
+**181** des décompresseurs et formats de musique, l'outil FAT12 (fsck compris) et la table de
 relocation de l'exécutable. Un test de mutation (retirer une protection)
 fait échouer la suite pour chaque protection essayée.
 `make bench` : voir [bench/README.md](../bench/README.md) pour le compte des

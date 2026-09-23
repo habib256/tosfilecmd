@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """mkdisk.py -- les disquettes de TOS File Cmd.
 
-    mkdisk.py VERSION build/TOSFC.PRG dist/
+    mkdisk.py VERSION build/TOSFC.PRG dist/ [build/]
+
+(build/ : la musique de demonstration fabriquee par le Makefile.)
 
 fabrique :
   dist/TOSFC-<v>.st      720 Ko double face : TOSFC.PRG dans AUTO\\ (il demarre
@@ -79,7 +81,7 @@ def manual_text():
     return text.encode("ascii", "replace").replace(b"\n", b"\r\n")
 
 
-def build(version, prg, geometry):
+def build(version, prg, geometry, build_dir=None):
     b = fat12.Builder(geometry, label="TOSFC")
     b.mkdir("AUTO")
     b.add("AUTO\\TOSFC.PRG", prg)
@@ -120,6 +122,12 @@ def build(version, prg, geometry):
     for name, fmt, res, gen in pics:
         pal, rows = gen()
         b.add("DEMO\\PICTURES\\" + name, fmt(res, pal, rows), date=dos_date(1990, 1, 1))
+    if build_dir:
+        b.mkdir("DEMO\\MUSIC")
+        music = ["WELCOME.YM", "TOSFC.SND"] + (["PLAIN.SND"] if geometry == "720k" else [])
+        for name in music:
+            b.add("DEMO\\MUSIC\\" + name, open(os.path.join(build_dir, name), "rb").read(),
+                  date=dos_date(2026, 9, 23))
     if geometry == "720k":
         bm, spal = stpic.spectrum_demo()
         b.add("DEMO\\PICTURES\\RAINBOW.SPC", stpic.spc(bm, spal), date=dos_date(1991, 4, 1))
@@ -133,13 +141,14 @@ def build(version, prg, geometry):
 
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
-    version, prg_path, out = sys.argv[1:]
+    version, prg_path, out = sys.argv[1:4]
+    build_dir = sys.argv[4] if len(sys.argv) == 5 else None
     prg = open(prg_path, "rb").read()
     os.makedirs(out, exist_ok=True)
     for geometry, suffix in (("720k", ""), ("360k", "-SS")):
-        img = build(version, prg, geometry)
+        img = build(version, prg, geometry, build_dir)
         problems = fat12.Image(img).fsck()
         if problems:
             sys.exit("mkdisk: %s image is inconsistent: %s" % (geometry, problems))

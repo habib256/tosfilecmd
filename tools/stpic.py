@@ -213,6 +213,24 @@ def spectrum_rgb(bm, pals):
     return out
 
 
+def spectrum_to_mono(bm, pals):
+    """Reference de pic_spectrum_to_mono : chaque point prend la luminance
+    de sa couleur Spectrum, tramage de Bayer 4 x 4 ; lignes 0-1 noires."""
+    rows = unplanar(0, bm)
+    out = bytearray(32000)
+    for y in range(1, 200):
+        pal = pals[(y - 1) * 48:y * 48]
+        lum = [luma(c) for c in pal]
+        for k in range(2):
+            oy = y * 2 + k
+            for x in range(640):
+                sx = x // 2
+                if lum[spectrum_slot(sx, rows[y][sx])] * 32 < (2 * BAYER[oy & 3][x & 3] + 1) * 15:
+                    out[oy * 80 + x // 8] |= 0x80 >> (x % 8)
+    out[0:160] = b"\xff" * 160
+    return bytes(out)
+
+
 def spu(bm, pals):
     return bm[:160] and bytes(160) + bm[160:32000] + struct.pack(">%dH" % len(pals), *pals)
 

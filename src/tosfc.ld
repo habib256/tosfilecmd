@@ -12,11 +12,11 @@ SECTIONS
         *crt0.o(.text)
         *(.text .text.*)
         *(.rodata .rodata.*)
-        . = ALIGN(2);
+        . = ALIGN(4);           /* .data (alignee sur 4) doit suivre sans trou */
     }
     .data : {
         *(.data .data.*)
-        . = ALIGN(2);
+        . = ALIGN(4);
     }
     .bss (NOLOAD) : {
         *(.bss .bss.* COMMON)

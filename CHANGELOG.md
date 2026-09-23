@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.3.0 — 2026-09-23 — J2 terminé : éditeur, Spectrum 512, musique
+
+- **Éditeur de texte** (`E`, `F4`) : tampon à trou, défilement horizontal,
+  lignes et colonnes, coupe de ligne, nouveau fichier. Fins de ligne
+  ramenées à LF en mémoire et reconstituées dans le style du fichier : un
+  fichier ouvert puis enregistré sans changement est identique au bit près
+  (66 Ko vérifiés par le banc). Refus de ce qu'une édition abîmerait
+  (octets nuls, fins mélangées, 1st Word, lecture seule, fichier plus grand
+  que la mémoire, erreur de lecture). **Enregistrement sûr**
+  (`ops_save_stream`) : `TOSFC.$ED` exclusif, écrit, fermé, relu et comparé ;
+  l'original en `TOSFC.BAK` jusqu'au bout ; toute panne le remet en place.
+- **Spectrum 512** (`.SPU`, `.SPC`) : décodage (RLE du SPC, masques de
+  palette), et routine d'affichage 68000 dans la file VBL : 24
+  `move.l (a0)+,(aN)+` par ligne sur trois registres, synchronisation sur le
+  compteur vidéo, écran à 50 Hz, souris IKBD coupée pendant l'affichage.
+  Réglée au cycle par le banc : **chacun des 64 000 points** a la couleur que
+  donne la formule du format. Tramage point par point sur moniteur mono.
+- **Musique en tâche de fond** : YM2 à YM6 (LHA `-lh5-` ou non), SNDH
+  (ICE! 2.4 ou non) ; accroche à `etv_timer` en XBRA (50 Hz quelle que soit
+  la fréquence de l'écran), Timer A pour les autres fréquences ; registre 7
+  jamais privé de ses bits de port (le port A choisit le lecteur de
+  disquette), ports jamais écrits ; pause, arrêt, sous-morceaux, boîte
+  Musique, note dans la barre des touches ; arrêt et décrochage en quittant.
+- **Décompresseurs portables** : `lzh.c` (niveaux d'en-tête 0 à 2, `-lh0-`,
+  `-lh5-`, CRC-16), `ice.c` (ICE! 2.4 et « Ice! », transformation image),
+  `ym.c`, `sndh.c` — bornes vérifiées partout.
+- **Disquette** : `DEMO\MUSIC` (WELCOME.YM et un SNDH composés pour TOSFC,
+  le SNDH en clair et compressé), `DEMO\PICTURES\RAINBOW.SPC` et `.SPU`.
+- **Outils** : `tools/lha.py` (compresseur lh5, vérifié contre lhasa),
+  `tools/chiptune.py` (la musique, et le lecteur SNDH en assembleur),
+  unice68 dans `tests/ext/` (compresseur ICE! de référence, hôte seulement).
+- **Tests** : `test_edit` (95), `test_music` (181 : LHA et ICE contre leurs
+  références, fichiers tronqués, abîmés et aléatoires sous AddressSanitizer,
+  YM, SNDH), `test_lha` (le compresseur contre lhasa). **Bancs** :
+  `editor.py` (25, dont la vitesse de frappe), `music.py` (16, dont un vrai son mesuré dans la sortie
+  audio de NeoST), Spectrum ajouté à `viewers.py` (53).
+- Budget de taille porté à 160 Ko (129 Ko utilisés).
+
+Corrigé pendant le développement : la table de travail du décompresseur LHA
+annoncée trop petite (débordement vu par AddressSanitizer, taille désormais
+vérifiée à la compilation) ; un trou d'alignement entre `.text` et `.data`
+refusé par elf2prg ; les bancs qui attendaient TOSFC après l'avoir quitté ;
+dans l'éditeur, un saut lointain (fin du texte) ne descendait la vue que
+d'une ligne par touche, et chaque touche reparcourait le texte (8 s par
+caractère en fin de fichier de 66 Ko, 0,15 s maintenant : accès en ligne au
+tampon, recherche des fins de ligne par segments, nombre de lignes tenu à
+jour) — le banc mesure désormais cette vitesse.
+
 ## 0.2.0 — 2026-09-23 — visionneuses (début de J2)
 
 - **Lecteur de texte** (`T`, ou RETURN sur un fichier) : 80 colonnes,

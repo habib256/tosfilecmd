@@ -27,6 +27,7 @@ enum {
 };
 
 /* Glyphes propres a TOSFC (remplacent des caracteres de controle). */
+#define G_NOTE  0x0E    /* note de musique */
 #define G_SBT   0x0F    /* simple horizontal, simple vers le haut */
 #define G_DH    0x10    /* double horizontal */
 #define G_DV    0x11    /* double vertical */

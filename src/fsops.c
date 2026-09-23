@@ -131,6 +131,7 @@ const char *err_text(long e)
     case TE_BADDIR:   return "Unreadable name in folder";
     case TE_NOTPIC:   return "Not a Degas or NEOchrome picture";
     case TE_BADPIC:   return "Picture file is damaged or truncated";
+    case TE_BADMUS:   return "Not a YM or SNDH tune, or damaged";
     }
     return "Unexpected error";
 }

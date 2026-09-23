@@ -26,12 +26,22 @@ typedef struct {
     long gap0, gap1;
     int eol;
     int modified;
+    long nlines;                /* nombre de LF : tenu a jour, jamais recompte */
 } EDBUF;
 
 /* Charge data dans mem[memcap] ; EB_OK ou une erreur (rien n'est garde). */
 int  eb_load(EDBUF *b, const unsigned char *data, long size, char *mem, long memcap);
-long eb_len(const EDBUF *b);
-int  eb_at(const EDBUF *b, long pos);           /* octet, ou -1 hors texte */
+/* En ligne : appeles pour chaque caractere affiche ou parcouru. */
+static inline long eb_len(const EDBUF *b)
+{
+    return b->cap - (b->gap1 - b->gap0);
+}
+
+static inline int eb_at(const EDBUF *b, long pos)   /* octet, ou -1 hors texte */
+{
+    if (pos < 0 || pos >= eb_len(b)) return -1;
+    return (unsigned char)b->buf[pos < b->gap0 ? pos : pos + (b->gap1 - b->gap0)];
+}
 int  eb_insert(EDBUF *b, long pos, const char *s, long n);
 void eb_delete(EDBUF *b, long pos, long n);
 

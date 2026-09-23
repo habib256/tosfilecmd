@@ -141,6 +141,17 @@
         : "=r"(_r) : "r"(_n), "r"(_b) : TRAP_CLOBBERS);                  \
     _r; })
 
+/* Xbtimer(timer, ctrl, data, vec) : trois mots puis un long. */
+#define TRAP_WWWWL_XBTIMER(t, c, d, v) ({                                \
+    register long _r __asm__("d0"); short _t = (short)(t), _c = (short)(c), _d = (short)(d); \
+    long _v = (long)(v);                                                 \
+    __asm__ volatile ("move.l %4,-(%%sp)\n\tmove.w %3,-(%%sp)\n\t"       \
+        "move.w %2,-(%%sp)\n\tmove.w %1,-(%%sp)\n\tmove.w #31,-(%%sp)\n\t" \
+        "trap #14\n\tlea 12(%%sp),%%sp"                                   \
+        : "=r"(_r) : "r"(_t), "r"(_c), "r"(_d), "r"(_v) : TRAP_CLOBBERS); \
+    _r; })
+#define Mshrink(b, n)         TRAP_WWLL(1, 0x4a, 0, b, n)
+
 /* Structure renvoyee par Kbdvbase : on n'utilise que mousevec. */
 typedef struct {
     void (*midivec)(void);

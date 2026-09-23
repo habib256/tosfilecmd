@@ -27,7 +27,7 @@ ROM = os.environ.get("NEOST_ROM", os.path.join(NEOST_DIR, "roms", "etos192us.img
 # Glyphes propres a TOSFC -> caracteres lisibles dans les journaux.
 GLYPHS = {0x0F: "┴", 0x10: "═", 0x11: "║", 0x12: "╔", 0x13: "╗", 0x14: "╚",
           0x15: "╝", 0x16: "╤", 0x17: "╧", 0x18: "╟", 0x19: "╢", 0x1A: "│",
-          0x1B: "─", 0x1C: "✓", 0x1D: "░", 0x1E: "█", 0x1F: "↑", 0x02: "↓"}
+          0x1B: "─", 0x1C: "✓", 0x1D: "░", 0x1E: "█", 0x1F: "↑", 0x02: "↓", 0x0E: "♪"}
 
 # Scancodes US : caractere -> (scancode, shift)
 _ROWS = [

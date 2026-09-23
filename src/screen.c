@@ -226,6 +226,33 @@ void scr_exit(void)
     linea_show_mouse();
 }
 
+/* ---- Visionneuses ---- */
+
+unsigned char *scr_graphics(int rez, const unsigned short *pal)
+{
+    if (!scr_mono) {
+        /* Ecran noir pendant le changement : ni l'ancien texte dans les
+         * nouvelles couleurs, ni l'image dans les anciennes. */
+        static const short black[16];
+        Setpalette(black);
+        Vsync();
+        Setscreen(-1L, -1L, rez);
+        if (pal) Setpalette(pal);
+    }
+    return vram;
+}
+
+void scr_text(void)
+{
+    int i;
+    if (!scr_mono) {
+        Setscreen(-1L, -1L, 1);
+        for (i = 0; i < 4; i++) (void)Setcolor(i, palette[i]);
+        Vsync();
+    }
+    scr_invalidate();
+}
+
 /* ---- Cellules ---- */
 
 void scr_puts(int x, int y, const char *s, int attr)

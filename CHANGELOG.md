@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0 — 2026-09-23 — visionneuses (début de J2)
+
+- **Lecteur de texte** (`T`, ou RETURN sur un fichier) : 80 colonnes,
+  coupure entre les mots, CR/LF/CRLF/LFCR, tabulations, codes de contrôle en
+  points ; documents **1st Word / 1st Word Plus** sans leurs lignes de format
+  ni leurs codes de style ; pages, début et fin, **recherche** (`F`, `N`),
+  **hexadécimal** (`H`, aller-retour à la même ligne). Aucun index : la
+  ligne précédente se recalcule, un fichier de plusieurs centaines de Ko
+  s'ouvre sans préparation. Fichier trop grand ou erreur de lecture :
+  on montre le début, et on le dit.
+- **Images** (`I`, ou RETURN sur une image) : Degas (PI1-3), Degas Elite
+  compressé (PC1-3) et NEOchrome (NEO), plein écran dans leur résolution et
+  leur palette ; **album** avec les flèches (les fichiers abîmés sont
+  sautés, la sélection du panneau suit) ; image couleur sur moniteur
+  monochrome **tramée** (Bayer 4 × 4, par tables : ~1,5 s à 8 MHz) ; image
+  monochrome sur moniteur couleur en **gris** en moyenne résolution.
+- Barre des touches : `T` Text et `I` Image ; libellés raccourcis.
+- Disquette : `DEMO\PICTURES` (cinq images, une par format), et dans
+  `DEMO\TEXTS` une lettre 1st Word, le manuel et un long texte.
+- Outils : `tools/stpic.py` (fabrique et relit les images, conversions de
+  référence), `tools/screenshots.py` (images et texte).
+- Tests : `tests/test_view.c` (73 contrôles : formats, fichiers tronqués,
+  3000 fichiers aléatoires sous AddressSanitizer, conversions, mise en page,
+  aller-retour ligne suivante/précédente) ; banc `bench/viewers.py`
+  (47 contrôles : mémoire vidéo et **chaque pixel** comparés aux images,
+  en couleur et en monochrome ; texte ; disquette inchangée).
+
+Corrigé pendant le développement : reculer d'une ligne depuis le milieu
+d'un CRLF, ou juste après une ligne de format 1st Word, restait sur place ;
+la luminance du blanc ST valait 14/15 ; les tables supposaient un `long`
+de 32 bits (faux sur l'hôte des tests).
+
 ## 0.1.0 — 2026-09-23 — J1 : le gestionnaire
 
 Première version : les deux panneaux et les opérations sur les fichiers, sur

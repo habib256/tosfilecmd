@@ -8,7 +8,8 @@ fabrique :
                          avec la disquette) et a la racine (pour le relancer
                          depuis le bureau), READ_ME.TXT et le dossier DEMO\\ ;
   dist/TOSFC-<v>-SS.st   360 Ko simple face, pour le lecteur SF354 d'origine
-                         du 520 ST : le meme contenu, sans BIG.BIN.
+                         du 520 ST : le meme contenu, sans BIG.BIN, MANUAL.TXT, LONG.TXT
+                         ni deux des images.
 
 Tout le contenu de demonstration est genere ici : aucun fichier tiers.
 """
@@ -17,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fat12  # noqa: E402
+import stpic  # noqa: E402
 from fat12 import ATTR_HIDDEN, ATTR_RO, dos_date, dos_time  # noqa: E402
 
 LOREM = (
@@ -45,6 +47,36 @@ def readme(version):
         "The DEMO folder is there to be copied, moved, renamed and deleted.\r\n"
         "Free software under the GNU GPL v3.\r\n" % version
     ).encode("ascii")
+
+
+def letter_doc():
+    """Un court document 1st Word : ligne de format, styles, espaces
+    elastiques ; TOSFC les retire a l'affichage."""
+    ruler = b"\x1f9[" + b"." * 64 + b"]001\r\n"
+    return (ruler +
+            b"Dear Atari user,\r\n\r\n"
+            b"This letter was written with \x1b\x811st Word Plus\x1b\x80, the word\r\n"
+            b"processor\x1e\x1ethat came with many STs. Its files mix the text with\r\n"
+            b"formatting codes: TOS File Cmd hides them and shows the words.\r\n\r\n"
+            b"\x1f9[" + b"." * 40 + b"]001\r\n"
+            b"Yours sincerely,\r\n    TOS File Cmd\r\n")
+
+
+def long_text():
+    lines = ["Line %05d of a long text file: scroll with the arrows, page with" % i +
+             " Left/Right, jump with Home and Shift+Home." for i in range(1, 601)]
+    return ("\r\n".join(lines) + "\r\n").encode("ascii")
+
+
+def manual_text():
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    text = open(os.path.join(here, "docs", "MANUAL.md"), encoding="utf-8").read()
+    # Cadres et fleches Unicode du manuel -> ASCII lisible sur le ST.
+    table = {"═": "=", "║": "|", "╔": "+", "╗": "+", "╚": "+", "╝": "+", "╤": "+",
+             "╧": "+", "╟": "+", "╢": "+", "│": "|", "─": "-", "┴": "+", "✓": "*",
+             "↓": "v", "↑": "^", "—": "--", "’": "'", "→": "->"}
+    text = "".join(table.get(ch, ch) for ch in text)
+    return text.encode("ascii", "replace").replace(b"\n", b"\r\n")
 
 
 def build(version, prg, geometry):
@@ -76,7 +108,21 @@ def build(version, prg, geometry):
     b.add("DEMO\\NESTED\\TOP.TXT", b"Top of the tree.\r\n")
     b.add("DEMO\\NESTED\\LEVEL1\\MIDDLE.TXT", b"Middle of the tree.\r\n")
     b.add("DEMO\\NESTED\\LEVEL1\\LEVEL2\\DEEP.TXT", b"Bottom of the tree.\r\n")
+    b.add("DEMO\\TEXTS\\LETTER.DOC", letter_doc(), date=dos_date(1988, 2, 29),
+          time=dos_time(11, 11))
+    b.mkdir("DEMO\\PICTURES")
+    pics = [("TESTCARD.PI1", stpic.degas, 0, stpic.testcard),
+            ("RINGS.PC1", stpic.degas_elite, 0, stpic.rings),
+            ("MANDEL.PC3", stpic.degas_elite, 2, stpic.mandel)]
     if geometry == "720k":
+        pics += [("SUNSET.NEO", stpic.neochrome, 0, stpic.sunset),
+                 ("STRIPES.PI2", stpic.degas, 1, stpic.medium)]
+    for name, fmt, res, gen in pics:
+        pal, rows = gen()
+        b.add("DEMO\\PICTURES\\" + name, fmt(res, pal, rows), date=dos_date(1990, 1, 1))
+    if geometry == "720k":
+        b.add("DEMO\\TEXTS\\MANUAL.TXT", manual_text())
+        b.add("DEMO\\TEXTS\\LONG.TXT", long_text())
         b.add("DEMO\\BIG.BIN", bytes((k * 31 + (k >> 8)) & 0xFF for k in range(120000)),
               date=dos_date(1995, 5, 5))
     return b.build()

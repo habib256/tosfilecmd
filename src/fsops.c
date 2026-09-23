@@ -129,6 +129,8 @@ const char *err_text(long e)
     case TE_RESTORE:  return "Old version left as TOSFC.BAK";
     case TE_READONLY: return "File is read-only";
     case TE_BADDIR:   return "Unreadable name in folder";
+    case TE_NOTPIC:   return "Not a Degas or NEOchrome picture";
+    case TE_BADPIC:   return "Picture file is damaged or truncated";
     }
     return "Unexpected error";
 }

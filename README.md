@@ -5,7 +5,7 @@
 **Two panels. One Atari ST.**
 
 A two-panel file manager for the Atari ST, STE and Mega ST.\
-Copy, move, rename and delete files and whole folders — every copy read back and checked.
+Manage files and folders — every copy read back and checked — read texts and view Degas and NEOchrome pictures.
 
 **[Manual](docs/MANUAL.md) · [Changelog](CHANGELOG.md) · [Data safety](docs/DATA-SAFETY.md) · [Roadmap](TODO.md)**
 
@@ -21,21 +21,27 @@ GEMDOS: a folder on each side, a bar of commands at the bottom, and the
 file you want is always two keys away. Tag a batch, press **C**, and it is on
 the other side — written, closed, read back and compared.
 
-## What version 0.1 does
+## What version 0.2 does
 
 | | |
 |---|---|
 | **Browse** | Two panels on any GEMDOS drive: floppies, hard disk partitions, RAM disks. Folders first, sorted by name, extension, size, date or disk order. Hidden and system files shown or hidden. Up to 1,024 entries per folder. |
 | **Manage files** | Copy, move, rename, delete and make folders. Tag files with SPACE, whole folders included. A progress bar for long jobs, ESC to stop. |
 | **Stay safe** | Copies are verified byte for byte. A replaced file is kept as `TOSFC.BAK` until its successor is checked, and put back if anything fails. A move deletes its source only after a full comparison. Delete asks first and defaults to Cancel. Disk errors get TOSFC's own Retry/Cancel box. See [data safety](docs/DATA-SAFETY.md). |
+| **Read texts** | A text viewer with word wrap, CR/LF/CRLF, tabs and 1st Word documents shown without their formatting codes. Page, jump to the end, find text, switch to hex with **H**. |
+| **View pictures** | Degas (`.PI1`–`.PI3`), Degas Elite compressed (`.PC1`–`.PC3`) and NEOchrome (`.NEO`), full screen in their own resolution and palette. Left/Right leaf through the folder like an album. A colour picture on a monochrome monitor is dithered; a monochrome one on a colour monitor is shown in greys. |
 | **Attributes** | Read-only, hidden, system and archive bits, for one file or a tagged batch. |
 | **Mouse or keyboard** | Click to select, click again to open, right-click to tag; click a column title to sort. Every command also has a key, and the familiar function keys work. |
 | **Remember** | Options → Save writes `TOSFC.INF` beside the program: both panels, their sort order and the options come back next time. Nothing is written unless you ask. |
 
-Viewers, the text editor, disk images and archives are next: see the
+The text editor, music, disk images and archives are next: see the
 [roadmap](TODO.md).
 
 <table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/06-picture.png" alt="A NEOchrome sunset shown full screen in low resolution"><br><strong>Pictures, full screen</strong><br>Degas, Degas Elite and NEOchrome, in their own palette.</td>
+    <td width="50%"><img src="docs/screenshots/07-text.png" alt="The text viewer showing the manual"><br><strong>Read without leaving your files</strong><br>Word wrap, find, hex, and 1st Word documents.</td>
+  </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/02-overwrite.png" alt="The overwrite question, showing both versions of the file"><br><strong>Know what you replace</strong><br>Size and date of both versions; Yes, No, All, None or Cancel.</td>
     <td width="50%"><img src="docs/screenshots/05-mono.png" alt="TOS File Cmd in high resolution on a monochrome monitor"><br><strong>Colour or monochrome</strong><br>Medium resolution on a colour monitor, high resolution on the SM124.</td>
@@ -48,14 +54,15 @@ Build the disks with `make disk` (a release will carry them), then:
 
 | Disk | For |
 |---|---|
-| `TOSFC-0.1.0.st` | 720 KB double-sided floppy: any ST with a double-sided drive |
-| `TOSFC-0.1.0-SS.st` | 360 KB single-sided floppy: the 520 ST's original SF354 drive |
+| `TOSFC-0.2.0.st` | 720 KB double-sided floppy: any ST with a double-sided drive |
+| `TOSFC-0.2.0-SS.st` | 360 KB single-sided floppy: the 520 ST's original SF354 drive |
 
 1. Boot the disk: TOS File Cmd starts from its `AUTO` folder. Low
    resolution switches to medium while it runs and comes back when you quit.
 2. **TAB** switches panels, **RETURN** opens, **ESC** goes up. **?** shows
    every key.
-3. The `DEMO` folder is there to be copied, moved, renamed and deleted.
+3. The `DEMO` folder is there to be copied, moved, renamed and deleted;
+   `DEMO\PICTURES` and `DEMO\TEXTS` show off the viewers.
    **Q** returns to the desktop, where `TOSFC.PRG` starts it again.
 
 On a hard disk, copy `TOSFC.PRG` anywhere and run it from the desktop.
@@ -68,7 +75,8 @@ to 2.06 and real hardware have not been tried yet.
 
 | Key | Action |
 |---|---|
-| `TAB` · `RETURN` · `ESC` | Switch panel · open · go up |
+| `TAB` · `RETURN` · `ESC` | Switch panel · open (a folder, a picture or a text) · go up |
+| `T` · `I` · `H` | Read as text · show as a picture · show in hex |
 | Up / Down · Left / Right | Select · page |
 | `SPACE` · `Insert` | Tag and move down |
 | `C` `F5` · `V` `F6` | Copy · move to the other panel |

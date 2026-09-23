@@ -26,11 +26,18 @@ progression et ESC, souris, aide, préférences, erreurs critiques.
 
 ## J2 — visionneuses et éditeur
 
-- Texte (avec 1st Word / 1st Word Plus) et hexadécimal, recherche.
+- ✅ Texte (avec 1st Word / 1st Word Plus) et hexadécimal, recherche (0.2.0).
+- ✅ Images plein écran : Degas (PI1-3, PC1-3), NEOchrome ; album ;
+  conversions couleur ↔ monochrome (0.2.0).
+- Spectrum 512 (SPU/SPC) : 512 couleurs, palette réécrite à chaque ligne
+  par une routine synchronisée au cycle près.
+- Tiny, IFF ILBM et images STE (palette 4 bits) ; saisir une copie d'écran.
 - Éditeur de texte.
-- Images plein écran : Degas (PI1-3, PC1-3 compressées), NEOchrome,
-  Spectrum 512 (SPU/SPC) ; flèches pour feuilleter.
 - Musique SNDH et YM en tâche de fond (interruption Timer), `P` pour la pause.
+- Lecture par fenêtres pour les fichiers plus grands que la mémoire libre.
+- La place : 111,5 Ko chargés sur 112 Ko de budget. Avant J3, alléger la
+  BSS (sauvegardes d'écran des boîtes, 24 Ko ; tableau des éléments, 24 Ko)
+  ou charger les outils en surcouches.
 
 ## J3 — images disque et archives
 

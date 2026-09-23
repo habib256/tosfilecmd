@@ -77,6 +77,13 @@ void scr_attr(int x, int y, int w, int attr);         /* change l'attribut */
 void scr_pointer(int x, int y);
 
 void scr_flush(void);
+
+/* Visionneuses plein ecran. scr_graphics passe dans la resolution rez (0 ou
+ * 1 en couleur ; ignoree en monochrome) avec la palette pal (16 registres,
+ * ou 0 pour ne pas y toucher), et rend l'adresse de l'ecran (32000 octets).
+ * scr_text revient a l'ecran texte de TOSFC et le fait tout redessiner. */
+unsigned char *scr_graphics(int rez, const unsigned short *pal);
+void scr_text(void);
 void scr_invalidate(void);
 /* Le tampon a ete modifie en bloc (restauration d'une boite) : tout comparer. */
 void scr_touch(void);

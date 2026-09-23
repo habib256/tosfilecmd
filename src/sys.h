@@ -51,6 +51,8 @@
 #define TE_RESTORE  -213L   /* restauration impossible : voir TOSFC.BAK */
 #define TE_READONLY -214L   /* fichier en lecture seule */
 #define TE_BADDIR   -215L   /* nom illisible dans un repertoire */
+#define TE_NOTPIC   -216L   /* pas une image reconnue */
+#define TE_BADPIC   -217L   /* image tronquee ou incoherente */
 
 /* Attributs FAT. */
 #define FA_RDONLY 0x01

@@ -18,11 +18,14 @@ from tosfc import TOSFC, DISK, scratch, copy_disk  # noqa: E402
 PPM2PNG = os.path.join(ROOT, "tools", "ppm2png.py")
 
 
-def shot(st, out, name, mono=False):
+def shot(st, out, name, mono=False, low=False):
     ppm = os.path.join(scratch(), name + ".ppm")
     st.shot(ppm)
     args = [sys.executable, PPM2PNG, ppm, os.path.join(out, name + ".png")]
-    if not mono:
+    if low:
+        # Basse resolution : NeoST ajoute les bordures ; on garde l'image.
+        args += ["--crop", "48", "29", "320", "200", "--scale", "2"]
+    elif not mono:
         args += ["--yscale", "2"]
     subprocess.run(args, check=True)
     print(os.path.join(out, name + ".png"))
@@ -56,6 +59,17 @@ def main():
         st.select(0, "LOREM.TXT")
         st.letter("a")
         shot(st, out, "04-attributes")
+        st.hit("ESC")
+        st.select(0, "MANUAL.TXT")
+        st.hit("RETURN")
+        for _ in range(3):
+            st.hit("DOWN")
+        shot(st, out, "07-text")
+        st.hit("ESC")
+        st.go(0, "A:\\DEMO\\PICTURES\\")
+        st.select(0, "SUNSET.NEO")
+        st.hit("RETURN")
+        shot(st, out, "06-picture", low=True)
         st.hit("ESC")
     finally:
         st.close()

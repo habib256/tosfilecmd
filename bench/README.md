@@ -23,6 +23,7 @@ temporaires. Un banc refuse une disquette qui ne porte pas le
 | `data_safety.py` | `TOSFC.BAK` préexistant, disque plein pendant un écrasement (ancienne version restaurée, fsck), dossier copié dans lui-même, disquette protégée en écriture (boîte critique de TOSFC, image inchangée au bit près), lecteur vide (Retry, Cancel). **19 contrôles.** |
 | `mouse.py` | Pointeur, clic pour sélectionner puis ouvrir, clic droit pour marquer, tri par les en-têtes, remontée par le chemin, changement de panneau, barre des touches, boutons des boîtes. **13 contrôles.** |
 | `prefs.py` | Options (fichiers cachés), enregistrement de `TOSFC.INF` sans `TOSFC.NEW` restant, panneaux, tri et options retrouvés au démarrage suivant. **12 contrôles.** |
+| `viewers.py` | Images en couleur (mémoire vidéo = bitmap du fichier, résolution, et **chaque pixel** de la capture = couleur de la palette), monochrome sur écran couleur (gris), couleur sur moniteur mono (tramage identique à la référence Python), album et sélection qui suit, images abîmées refusées et sautées ; texte : 1st Word, pages, fin, recherche, hexa aller-retour, fichier vide, binaire ; disquette inchangée au bit près. **47 contrôles.** |
 | `memory.py` | Creux réel des deux piles après une session chargée, comparé à la réserve et à l'estimation statique de `tools/check_budget.py`. **4 contrôles.** |
 
 `run_all.py` les enchaîne et résume ; `make bench` le lance après `make disk`.

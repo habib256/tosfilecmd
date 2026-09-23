@@ -1,4 +1,4 @@
-# TOS File Cmd 0.1 — Manual
+# TOS File Cmd 0.2 — Manual
 
 ## 1. Starting
 
@@ -8,7 +8,7 @@ monochrome monitor (high resolution). In low resolution it switches to
 medium while it runs and restores low resolution and your colours when you
 quit.
 
-- **From the floppy**: boot `TOSFC-0.1.0.st` (or `-SS.st` for a single-sided
+- **From the floppy**: boot `TOSFC-0.2.0.st` (or `-SS.st` for a single-sided
   drive). TOSFC starts from the `AUTO` folder.
 - **From the desktop**: open `TOSFC.PRG`.
 
@@ -26,7 +26,7 @@ lists the drives.
 ╟─────────────┴─────────┴────────┴─────╢
 ║BIG.BIN      Archive                  ║   the selected file, or the tag count
 ╚═════════ 467,968 bytes free ═════════╝
-?Help CCopy VMove RRename DDelete ...        the key bar (clickable)
+?Help TText IImage CCopy VMove ...           the key bar (clickable)
 ```
 
 The active panel has its path highlighted and a selection bar. Operations
@@ -38,7 +38,8 @@ nothing is tagged, and copy or move towards the folder of the other panel.
 | Key | Action |
 |---|---|
 | `TAB` | Switch panels |
-| `RETURN` | Open the selected folder or drive |
+| `RETURN`, `F3` | Open the selected folder or drive; view a file (pictures full screen, anything else as text) |
+| `T` · `I` · `H` | Read the file as text · show it as a picture · show it in hex |
 | `ESC`, `Backspace` | Go up; at the root of a drive, show the drive list |
 | Up / Down | Select the previous / next entry (Shift: a page) |
 | Left / Right | Previous / next page |
@@ -70,7 +71,43 @@ between buttons, RETURN takes the highlighted one and ESC or Undo cancels.
 - Click the path at the top of a panel to go up.
 - Click a command in the key bar, or a button in a dialog.
 
-## 5. Copying and moving
+## 5. Viewing files
+
+Viewers only read: nothing is ever written to the disk.
+
+**Text** (`RETURN` on a file, or `T`): the file is shown 80 columns wide,
+long lines wrapped between words. CR, LF and CRLF line ends are all
+understood, tabs every 8 columns, and control codes appear as dots.
+1st Word and 1st Word Plus documents (`.DOC`) are shown without their
+format lines and style codes.
+
+| Key | Action |
+|---|---|
+| Up / Down | One line |
+| Left / Right, SPACE | One page (one line of overlap) |
+| `Clr Home` · Shift+`Clr Home` | Beginning · end |
+| `F` · `N` | Find text (any case) · find the next one |
+| `H` | Switch between text and hex at the same place |
+| `ESC`, `Q`, right click | Back to the panels |
+
+A click in the upper half of the screen goes back a page, in the lower half
+forward. The top line shows the name, the size and where you are. A file
+too large for the free memory is shown from its beginning, and the top
+line says so; a read error shows what could be read, and says so.
+
+**Pictures** (`RETURN` on a picture, or `I`): Degas `.PI1` `.PI2` `.PI3`,
+Degas Elite `.PC1` `.PC2` `.PC3` and NEOchrome `.NEO` are shown full
+screen in their own resolution and palette.
+
+- Left / Right (or a click, or SPACE) show the previous / next picture of
+  the folder; files that are not pictures, or are damaged, are skipped.
+  When you come back, the panel's selection is on the last picture shown.
+- On a monochrome monitor, a colour picture is dithered to black and white.
+  On a colour monitor, a monochrome picture is shown in white, grey and
+  black at medium resolution.
+- Any other key, or a right click, returns to the panels.
+
+## 6. Copying and moving
 
 1. Open the destination folder in one panel and the source in the other.
 2. Tag what you want (or just select one entry), then **C** or **V**.
@@ -95,20 +132,20 @@ What TOSFC guarantees (details in [DATA-SAFETY.md](DATA-SAFETY.md)):
 A folder cannot be copied into itself. Dates of files are kept; dates of
 folders are not (GEMDOS cannot set them).
 
-## 6. Deleting
+## 7. Deleting
 
 **D** lists what will go and warns when folders are included. The default
 button is **Cancel**: press **D** (or click Delete) to confirm. Read-only
 files are not deleted; the folders that contain them stay.
 
-## 7. Attributes
+## 8. Attributes
 
 **A** shows Read-only, Hidden, System and Archive for the selected file
 (or the first tagged file). Press the first letter of a flag to switch it,
 then **O** (OK) to apply it to the selected or tagged files. Folders are
 left as they are.
 
-## 8. Disk errors
+## 9. Disk errors
 
 When a floppy is write-protected, missing or unreadable, TOSFC shows the
 error and the drive with **Retry** and **Cancel**. Cancel lets the current
@@ -116,7 +153,7 @@ operation fail cleanly: files it created are removed and replaced files
 are put back. On a single-drive machine, TOSFC asks you to insert the
 disk for B: when needed.
 
-## 9. Options
+## 10. Options
 
 **O** opens the options:
 
@@ -127,9 +164,9 @@ disk for B: when needed.
   on the program's own drive reopen next time; TOSFC never asks for another
   floppy at start-up.
 
-## 10. Limits
+## 11. Limits
 
 - 1,024 entries per panel; beyond that the panel says so.
 - Folders nested 16 deep at most, paths of 127 characters.
-- Viewers, the editor, disk images, archives and program launching are
-  planned for the next versions.
+- Spectrum 512 pictures, the text editor, music, disk images, archives and
+  program launching are planned for the next versions.

@@ -9,6 +9,8 @@
 #include "panel.h"
 #include "fsops.h"
 #include "prefs.h"
+#include "view.h"
+#include "picture.h"
 #include "version.h"
 
 #define Cconws(s) TRAP_WL(1, 0x09, s)
@@ -26,12 +28,14 @@ static int quit;
 
 typedef struct { const char *key, *label; short cmd; } KEYBAR;
 enum { C_HELP, C_COPY, C_MOVE, C_REN, C_DEL, C_MKDIR, C_ATTR, C_SORT,
-       C_DRIVES, C_OPTS, C_QUIT, C_NCMD };
+       C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_NCMD };
+/* 80 colonnes tout juste : les libelles sont courts. */
 static const KEYBAR keybar[] = {
-    { "?", "Help", C_HELP }, { "C", "Copy", C_COPY }, { "V", "Move", C_MOVE },
-    { "R", "Rename", C_REN }, { "D", "Delete", C_DEL }, { "K", "MkDir", C_MKDIR },
-    { "A", "Attrib", C_ATTR }, { "S", "Sort", C_SORT }, { "L", "Drives", C_DRIVES },
-    { "O", "Options", C_OPTS }, { "Q", "Quit", C_QUIT },
+    { "?", "Help", C_HELP }, { "T", "Text", C_TEXT }, { "I", "Image", C_IMAGE },
+    { "C", "Copy", C_COPY }, { "V", "Move", C_MOVE }, { "R", "Ren", C_REN },
+    { "D", "Del", C_DEL }, { "K", "MkDir", C_MKDIR }, { "A", "Attr", C_ATTR },
+    { "S", "Sort", C_SORT }, { "L", "Drives", C_DRIVES }, { "O", "Opts", C_OPTS },
+    { "Q", "Quit", C_QUIT },
 };
 #define NKEYBAR (int)(sizeof keybar / sizeof keybar[0])
 static short keybar_x[NKEYBAR + 1];
@@ -423,6 +427,8 @@ static void cmd_help(void)
         "SPACE, Ins   tag and move down    *        invert tags",
         "+ / -        tag all / untag all  Ctrl+R   re-read both panels",
         "",
+        "RETURN, F3   view a file: pictures full screen, others as text",
+        "T  I  H      read as text, show as a picture, show in hex",
         "C  F5        copy to the other panel",
         "V  F6        move to the other panel",
         "R            rename               K  F7    make a folder",
@@ -430,12 +436,10 @@ static void cmd_help(void)
         "S  F9        sort: name, ext, size, date, disk order",
         "O            options (verify, hidden files, save settings)",
         "?  HELP  F1  this page            Q  F10   quit",
-        "",
         "Mouse: click selects, click again opens; right click tags;",
         "click a column title to sort, the path to go up.",
         "",
-        "Copies are verified. A replaced file is kept as TOSFC.BAK",
-        "until the new copy is written and checked.",
+        "Copies are verified; a replaced file stays TOSFC.BAK until checked.",
     };
     const int n = (int)(sizeof help / sizeof help[0]);
     int i;
@@ -514,6 +518,15 @@ static void do_cmd(int c)
         break;
     }
     case C_OPTS: cmd_options(); break;
+    case C_TEXT: view_text(&panels[active], 0); break;
+    case C_HEX: view_text(&panels[active], 1); break;
+    case C_IMAGE: view_picture(&panels[active]); break;
+    case C_VIEW: {
+        FINFO *f = panel_current(&panels[active]);
+        if (f && !(f->attr & FA_DIR) && !panel_is_drives(&panels[active]))
+            do_cmd(pic_is_picture_name(f->name) ? C_IMAGE : C_TEXT);
+        break;
+    }
     case C_QUIT:
         if (ui_confirm("Quit", "Leave " TOSFC_NAME "?", 0, 1)) quit = 1;
         break;
@@ -538,7 +551,7 @@ static void on_key(EVENT *e)
         FINFO *f = panel_current(p);
         if (!f) return;
         if (panel_is_drives(p) || (f->attr & FA_DIR)) show_load_error(panel_enter(p));
-        else ui_message(f->name, "Viewers and the editor come", "in the next version.");
+        else do_cmd(C_VIEW);
         return;
     }
     case SC_ESC: case SC_BACKSP: show_load_error(panel_up(p)); return;
@@ -559,6 +572,7 @@ static void on_key(EVENT *e)
         return;
     case SC_HELP: case SC_F1: do_cmd(C_HELP); return;
     case SC_F2: do_cmd(C_ATTR); return;
+    case SC_F3: do_cmd(C_VIEW); return;
     case SC_F5: do_cmd(C_COPY); return;
     case SC_F6: do_cmd(C_MOVE); return;
     case SC_F7: do_cmd(C_MKDIR); return;
@@ -583,6 +597,7 @@ static void on_key(EVENT *e)
         }
         return;
     }
+    if (c == 'H') { do_cmd(C_HEX); return; }
     for (i = 0; i < NKEYBAR; i++)
         if (c == keybar[i].key[0]) { do_cmd(keybar[i].cmd); return; }
 }

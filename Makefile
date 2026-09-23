@@ -10,7 +10,7 @@
 # Toolchain: m68k-elf-gcc (Homebrew: brew install m68k-elf-gcc) and Python 3.
 # No C library: src/libc.c and the TOS calls of src/tos.h are all there is.
 
-VERSION = 0.1.0
+VERSION = 0.2.0
 
 CROSS   ?= m68k-elf-
 CC      = $(CROSS)gcc
@@ -27,7 +27,8 @@ CFLAGS = -mcpu=68000 -Os -fomit-frame-pointer -ffreestanding \
 LDFLAGS = -mcpu=68000 -nostdlib -T src/tosfc.ld -Wl,--emit-relocs \
           -Wl,-Map,$(BUILD)/tosfc.map -Wl,--no-warn-rwx-segments
 
-OBJS = crt0.o main.o screen.o input.o ui.o panel.o fsops.o prefs.o sys_tos.o libc.o
+OBJS = crt0.o main.o screen.o input.o ui.o panel.o fsops.o prefs.o view.o picture.o \
+       textview.o sys_tos.o libc.o
 OBJS := $(addprefix $(BUILD)/,$(OBJS))
 HDRS = $(wildcard src/*.h)
 
@@ -64,9 +65,14 @@ $(BUILD)/host/test_prefs: tests/test_prefs.c tests/fakedos.c tests/fakedos.h \
 	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_prefs.c tests/fakedos.c src/prefs.c \
 	    src/fsops.c src/libc.c
 
-test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/TOSFC.PRG
+$(BUILD)/host/test_view: tests/test_view.c src/picture.c src/textview.c src/libc.c \
+                         $(HDRS) | $(BUILD)
+	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_view.c src/picture.c src/textview.c src/libc.c
+
+test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/host/test_view $(BUILD)/TOSFC.PRG
 	$(BUILD)/host/test_fsops
 	$(BUILD)/host/test_prefs
+	$(BUILD)/host/test_view
 	$(PYTHON) tests/test_fat12.py
 	$(PYTHON) tests/test_elf2prg.py $(BUILD)
 

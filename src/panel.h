@@ -6,6 +6,7 @@
 #define PANEL_H
 
 #include "sys.h"
+#include "vfs.h"
 
 #define PANEL_MAX   1024        /* entrees par panneau */
 #define PANEL_ROWS  19          /* lignes de fichiers visibles */
@@ -27,6 +28,7 @@ typedef struct {
     long err;                   /* derniere erreur de lecture */
     unsigned long freeb;
     int free_ok;
+    VFS *vfs;                   /* image ou archive ouverte : path est dedans */
 } PANEL;
 
 extern int opt_show_hidden;
@@ -46,6 +48,8 @@ long panel_up(PANEL *p);
 int  panel_items(PANEL *p, FINFO *out, int cap);
 FINFO *panel_current(PANEL *p);
 int  panel_is_drives(const PANEL *p);
+/* Ferme l'image ou l'archive ouverte dans le panneau (s'il y en a une). */
+void panel_close_vfs(PANEL *p);
 
 /* Nom 8.3 affiche en colonnes "NOM     EXT". */
 void fmt_name83(char *out, const char *name);

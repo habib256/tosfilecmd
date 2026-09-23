@@ -8,7 +8,10 @@
 #define LZH_H
 
 typedef struct {
-    char name[64];
+    char name[64];              /* sans le dossier */
+    char dir[64];               /* dossier (extension de type 2), "" sinon ;
+                                   separateurs rendus en '\\' */
+    unsigned short time, date;  /* MS-DOS (niveaux 0 et 1) */
     char method[6];             /* "-lh5-" ... */
     long packed, size;
     long data;                  /* offset des donnees dans l'archive */
@@ -29,6 +32,9 @@ typedef struct {
 int lzh_is_archive(const unsigned char *a, long n);
 /* En-tete a l'offset off : LZH_OK (e rempli), LZH_END ou LZH_BAD. */
 int lzh_entry(const unsigned char *a, long n, long off, LZHENTRY *e);
+/* Idem, en-tete seul dans a[n] : les donnees peuvent etre au-dela
+ * (e->next a verifier par l'appelant contre la vraie taille). */
+int lzh_header(const unsigned char *a, long n, long off, LZHENTRY *e);
 /* Decompresse e dans out[e->size] ; work : LZH_WORK_BYTES octets. */
 int lzh_extract(const unsigned char *a, long n, const LZHENTRY *e,
                 unsigned char *out, void *work);

@@ -132,8 +132,59 @@ const char *err_text(long e)
     case TE_NOTPIC:   return "Not a Degas or NEOchrome picture";
     case TE_BADPIC:   return "Picture file is damaged or truncated";
     case TE_BADMUS:   return "Not a YM or SNDH tune, or damaged";
+    case TE_BADARC:   return "Image or archive damaged";
+    case TE_METHOD:   return "Compression method not supported";
+    case TE_RDONLYFS: return "Read-only: image or archive";
+    case TE_BIG:      return "File too big for memory";
     }
     return "Unexpected error";
+}
+
+/* ---- Sources ---- */
+
+static long gd_first(void *ctx, const char *dir, FINFO *out)
+{
+    char pat[PATH_MAX_TOSFC];
+    (void)ctx;
+    if (path_join(pat, dir, "*.*", 0)) return TE_TOOLONG;
+    return sys_first(pat, ATTR_ALL, out);
+}
+static long gd_next(void *ctx, FINFO *out) { (void)ctx; return sys_next(out); }
+static long gd_open(void *ctx, const char *path) { (void)ctx; return sys_open(path, 0); }
+static long gd_read(void *ctx, long h, long n, void *buf) { (void)ctx; return sys_read((int)h, n, buf); }
+static long gd_close(void *ctx, long h) { (void)ctx; return sys_close((int)h); }
+
+static const SOURCE gemdos = { 0, gd_first, gd_next, gd_open, gd_read, gd_close };
+
+#define SRC(o) ((o)->src ? (o)->src : &gemdos)
+
+static const SOURCE *reg_src[2];
+static const char *reg_root[2];
+
+void src_add(const SOURCE *s, const char *root)
+{
+    int i;
+    for (i = 0; i < 2; i++)
+        if (!reg_src[i]) { reg_src[i] = s; reg_root[i] = root; return; }
+}
+
+void src_remove(const SOURCE *s)
+{
+    int i;
+    for (i = 0; i < 2; i++)
+        if (reg_src[i] == s) reg_src[i] = 0;
+}
+
+const SOURCE *src_of(const char *path)
+{
+    int i;
+    for (i = 0; i < 2; i++) {
+        long l;
+        if (!reg_src[i]) continue;
+        l = (long)strlen(reg_root[i]);
+        if (!strncmp(path, reg_root[i], l)) return reg_src[i];
+    }
+    return &gemdos;
 }
 
 /* ---- Memoire de travail ---- */
@@ -172,18 +223,16 @@ void ops_end(OPS *o)
     o->block = 0;
 }
 
-/* Lit tout un niveau (sans . et ..) en haut de l'arene. */
-static long read_level(OPS *o, const char *dir, int *first, int *count)
+/* Lit tout un niveau (sans . et ..) en haut de l'arene, depuis la source s. */
+static long read_level(OPS *o, const SOURCE *s, const char *dir, int *first, int *count)
 {
-    char pat[PATH_MAX_TOSFC];
     FINFO f;
     long r;
     int n = 0;
 
     *first = o->arena_top;
     *count = 0;
-    if (path_join(pat, dir, "*.*", 0)) return TE_TOOLONG;
-    r = sys_first(pat, ATTR_ALL, &f);
+    r = s->first(s->ctx, dir, &f);
     while (r == 0) {
         if (!is_dotname(f.name)) {
             char tmp[13];
@@ -195,7 +244,7 @@ static long read_level(OPS *o, const char *dir, int *first, int *count)
             o->arena[o->arena_top + n] = f;
             n++;
         }
-        r = sys_next(&f);
+        r = s->next(s->ctx, &f);
     }
     if (r != ENMFIL && r != EFILNF) return r;
     o->arena_top += n;
@@ -213,7 +262,7 @@ static long scan_tree(OPS *o, const char *dir, int depth)
     int save = o->arena_top;
 
     if (depth > MAX_DEPTH) return TE_TOODEEP;
-    r = read_level(o, dir, &first, &n);
+    r = read_level(o, SRC(o), dir, &first, &n);
     if (r) { o->arena_top = save; return r; }
     for (i = 0; i < n && r == 0; i++) {
         FINFO *f = &o->arena[first + i];
@@ -307,12 +356,13 @@ static long compare_files(OPS *o, const char *a, const char *b)
     if (half > CHUNK) half = CHUNK;
     char *ba = o->buf, *bb = o->buf + half;
 
-    ha = sys_open(a, 0);
+    const SOURCE *s = SRC(o);
+    ha = s->open(s->ctx, a);
     if (ha < 0) return ha;
     hb = sys_open(b, 0);
-    if (hb < 0) { sys_close((int)ha); return hb; }
+    if (hb < 0) { s->close(s->ctx, ha); return hb; }
     for (;;) {
-        na = sys_read((int)ha, half, ba);
+        na = s->read(s->ctx, ha, half, ba);
         if (na < 0) { r = na; break; }
         nb = sys_read((int)hb, half, bb);
         if (nb < 0) { r = nb; break; }
@@ -320,7 +370,7 @@ static long compare_files(OPS *o, const char *a, const char *b)
         if (na == 0) break;
         if (o->cancel && o->cancel(o)) { r = TE_CANCEL; break; }
     }
-    sys_close((int)ha);
+    s->close(s->ctx, ha);
     sys_close((int)hb);
     return r;
 }
@@ -371,13 +421,14 @@ static long write_copy(OPS *o, const char *src, const char *dst, const FINFO *sf
     /* Creation exclusive : GEMDOS n'en a pas, on sonde juste avant. */
     r = probe(dst, &chk);
     if (r != 0) return r > 0 ? TE_EXISTS : r;
-    hs = sys_open(src, 0);
+    const SOURCE *s = SRC(o);
+    hs = s->open(s->ctx, src);
     if (hs < 0) return hs;
     hd = sys_create(dst, 0);
-    if (hd < 0) { sys_close((int)hs); return hd; }
+    if (hd < 0) { s->close(s->ctx, hs); return hd; }
 
     for (;;) {
-        n = sys_read((int)hs, chunk, o->buf);
+        n = s->read(s->ctx, hs, chunk, o->buf);
         if (n < 0) { r = n; break; }
         if (n == 0) break;
         w = sys_write((int)hd, n, o->buf);
@@ -390,7 +441,7 @@ static long write_copy(OPS *o, const char *src, const char *dst, const FINFO *sf
     if (r == 0) sys_settime((int)hd, sf->time, sf->date);
     w = sys_close((int)hd);
     if (r == 0 && w < 0) r = w;
-    sys_close((int)hs);
+    s->close(s->ctx, hs);
     if (r == 0 && verify) r = compare_files(o, src, dst);
     if (r == 0) {
         int a = sf->attr & (FA_RDONLY | FA_HIDDEN | FA_SYSTEM);
@@ -486,7 +537,7 @@ static int do_tree(OPS *o, const char *src, const char *dst, const FINFO *sf,
         if (a != ANS_YES) { o->skipped++; return 0; }
     }
 
-    r = read_level(o, src, &first, &n);
+    r = read_level(o, SRC(o), src, &first, &n);
     if (r) { o->arena_top = save; fail(o, src, r, more); return 0; }
     for (i = 0; i < n && !o->stop; i++) {
         FINFO *f = &o->arena[first + i];
@@ -560,7 +611,7 @@ static int del_tree(OPS *o, const char *dir, int depth, int more)
     char p[PATH_MAX_TOSFC];
 
     if (depth > MAX_DEPTH) { fail(o, dir, TE_TOODEEP, more); return 0; }
-    r = read_level(o, dir, &first, &n);
+    r = read_level(o, &gemdos, dir, &first, &n);
     if (r) { o->arena_top = save; fail(o, dir, r, more); return 0; }
     for (i = 0; i < n && !o->stop; i++) {
         FINFO *f = &o->arena[first + i];

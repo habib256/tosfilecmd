@@ -16,6 +16,23 @@ enum { ANS_YES, ANS_NO, ANS_ALL, ANS_NONE, ANS_CANCEL };
 /* Questions posees par les operations. */
 enum { Q_OVERWRITE, Q_MERGE };
 
+/* D'ou viennent les fichiers copies : le GEMDOS (source nulle), une image
+ * disque ou une archive (vfs.c). Chemins complets ; dir finit par '\'. */
+typedef struct {
+    void *ctx;
+    long (*first)(void *ctx, const char *dir, FINFO *out);   /* 0, ENMFIL ou erreur */
+    long (*next)(void *ctx, FINFO *out);
+    long (*open)(void *ctx, const char *path);               /* handle >= 0 */
+    long (*read)(void *ctx, long h, long n, void *buf);
+    long (*close)(void *ctx, long h);
+} SOURCE;
+
+/* Dossiers virtuels ouverts (au plus deux : un par panneau). src_of rend
+ * la source dont la racine prefixe path, sinon celle de GEMDOS. */
+void src_add(const SOURCE *s, const char *root);
+void src_remove(const SOURCE *s);
+const SOURCE *src_of(const char *path);
+
 typedef struct OPS OPS;
 struct OPS {
     /* Rappels fournis par l'interface (ou par les tests). */
@@ -28,6 +45,7 @@ struct OPS {
     void *user;
 
     int verify;                 /* relire et comparer apres chaque copie */
+    const SOURCE *src;          /* 0 : les sources sont des fichiers GEMDOS */
 
     /* Etat, remis a zero par ops_begin. */
     int overwrite;              /* 0 demander, ANS_ALL ou ANS_NONE */

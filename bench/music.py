@@ -139,9 +139,9 @@ def main():
     disk = copy_disk(DISK, work, "A3.ST")
     keys = []
     frame = 400
-    # Racine : AUTO DEMO READ_ME TOSFC -> DEMO ; DEMO : MANY MUSIC ... -> MUSIC ;
+    # Racine : AUTO DEMO READ_ME TOSFC -> DEMO ; DEMO : .. ARCHIVES MANY MUSIC ... -> MUSIC ;
     # MUSIC : .. PLAIN.SND TOSFC.SND WELCOME.YM -> WELCOME.YM.
-    for sc in ["50", "1c", "50", "50", "1c", "50", "50", "50", "1c"]:
+    for sc in ["50", "1c", "50", "50", "50", "1c", "50", "50", "50", "1c"]:
         keys += ["--scancode-at", str(frame), sc]
         frame += 40
     subprocess.run([NEOST, ROM, "--machine", "st", "--mem", "1m", "--disk", disk, "--fastfdc",

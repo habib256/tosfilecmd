@@ -208,6 +208,15 @@ static void summary(const char *verb)
 
 /* ---- Commandes ---- */
 
+/* Les images et les archives ouvertes sont en lecture seule. */
+static int read_only(const PANEL *p, const char *title)
+{
+    if (!p->vfs) return 0;
+    ui_message(title, "Disk images and archives are read-only here.",
+               "Copy files out with F5.");
+    return 1;
+}
+
 static int count_items(int n, int *dirs)
 {
     int i;
@@ -252,6 +261,8 @@ static void cmd_copy(int move)
                    "in the other panel first.");
         return;
     }
+    if (read_only(dst, move ? "Move" : "Copy")) return;
+    if (move && read_only(src, "Move")) return;
     if (!strcmp(src->path, dst->path)) {
         ui_message(move ? "Move" : "Copy", "Source and destination",
                    "are the same folder.");
@@ -269,6 +280,7 @@ static void cmd_copy(int move)
         return;
 
     ops_setup();
+    if (src->vfs) ops.src = vfs_source(src->vfs);
     r = ops_begin(&ops);
     if (r) { ui_error("Cannot start", "", r); return; }
     r = ops_scan(&ops, src->path, items, n);
@@ -297,7 +309,7 @@ static void cmd_delete(void)
     long r;
 
     n = panel_items(p, items, PANEL_MAX);
-    if (n == 0) return;
+    if (n == 0 || read_only(p, "Delete")) return;
     count_items(n, &dirs);
     describe(what, n, dirs);
     lines[0] = what;
@@ -337,7 +349,7 @@ static void cmd_rename(void)
     FINFO *f = current_real();
     char name[14], old[14], norm[13];
     long r;
-    if (!f) return;
+    if (!f || read_only(&panels[active], "Rename")) return;
     str_copy(old, f->name, sizeof old);
     str_copy(name, old, sizeof name);
     if (!ui_input("Rename", old, name, 13)) return;
@@ -353,7 +365,7 @@ static void cmd_mkdir(void)
     PANEL *p = &panels[active];
     char name[14], norm[13];
     long r;
-    if (panel_is_drives(p)) return;
+    if (panel_is_drives(p) || read_only(p, "Make folder")) return;
     name[0] = 0;
     if (!ui_input("Make folder", "Name of the new folder:", name, 13)) return;
     if (!name[0]) return;
@@ -375,7 +387,7 @@ static void cmd_attrib(void)
     long e;
 
     n = panel_items(p, items, PANEL_MAX);
-    if (n == 0) return;
+    if (n == 0 || read_only(p, "Attributes")) return;
     count_items(n, &dirs);
     files = n - dirs;
     if (files == 0) { ui_message("Attributes", "Folder attributes are left", "as they are."); return; }
@@ -446,7 +458,7 @@ static void cmd_help(void)
         "?  HELP  F1  this page            Q  F10   quit",
         "Mouse: click selects, click again opens; right click tags;",
         "click a column title to sort, the path to go up.",
-        "",
+        "RETURN opens .ST .MSA .LZH .ZIP .ARC like folders, read-only.",
         "Copies are verified; a replaced file stays TOSFC.BAK until checked.",
     };
     const int n = (int)(sizeof help / sizeof help[0]);
@@ -466,6 +478,14 @@ static long save_settings(void)
     memset(&pr, 0, sizeof pr);
     for (i = 0; i < 2; i++) {
         str_copy(pr.path[i], panels[i].path, PATH_MAX_TOSFC);
+        if (panels[i].vfs) {
+            /* Le dossier du conteneur : pas d'archive rouverte au demarrage. */
+            char *s;
+            str_copy(pr.path[i], vfs_root(panels[i].vfs), PATH_MAX_TOSFC);
+            pr.path[i][strlen(pr.path[i]) - 1] = 0;
+            s = strrchr(pr.path[i], '\\');
+            if (s) s[1] = 0;
+        }
         pr.sort[i] = panels[i].sort;
     }
     pr.active = active;
@@ -566,6 +586,7 @@ static void do_cmd(int c)
     case C_HEX: view_text(&panels[active], 1); break;
     case C_IMAGE: view_picture(&panels[active]); break;
     case C_EDIT:
+        if (read_only(&panels[active], "Edit")) break;
         if (edit_file(&panels[active])) reload_both();
         break;
     case C_VIEW: {
@@ -613,7 +634,9 @@ static void on_key(EVENT *e)
     case SC_RETURN: case SC_ENTER: {
         FINFO *f = panel_current(p);
         if (!f) return;
-        if (panel_is_drives(p) || (f->attr & FA_DIR)) show_load_error(panel_enter(p));
+        if (panel_is_drives(p) || (f->attr & FA_DIR)
+            || (!p->vfs && vfs_kind_of_name(f->name) != VK_NONE))
+            show_load_error(panel_enter(p));
         else do_cmd(C_VIEW);
         return;
     }

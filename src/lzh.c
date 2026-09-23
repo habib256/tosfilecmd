@@ -48,7 +48,38 @@ int lzh_is_archive(const unsigned char *a, long n)
     return n >= 22 && a[2] == '-' && a[3] == 'l' && a[4] == 'h' && a[6] == '-';
 }
 
+/* Extensions d'en-tete : 1 = nom, 2 = dossier (separateurs $FF). */
+static int parse_ext(const unsigned char *a, long p, long end, LZHENTRY *e, long *after)
+{
+    long sz;
+    int i;
+    while (p + 2 <= end && (sz = le16(a + p)) != 0) {
+        if (sz < 3 || p + sz > end) return LZH_BAD;
+        if (a[p + 2] == 1) {
+            for (i = 0; i < sz - 3 && i < 63; i++) e->name[i] = (char)a[p + 3 + i];
+            e->name[i] = 0;
+        } else if (a[p + 2] == 2) {
+            for (i = 0; i < sz - 3 && i < 62; i++) {
+                unsigned char c = a[p + 3 + i];
+                e->dir[i] = (char)(c == 0xff || c == '/' ? '\\' : c);
+            }
+            if (i && e->dir[i - 1] != '\\') e->dir[i++] = '\\';
+            e->dir[i] = 0;
+        }
+        p += sz;
+    }
+    *after = p + 2;
+    return LZH_OK;
+}
+
 int lzh_entry(const unsigned char *a, long n, long off, LZHENTRY *e)
+{
+    int r = lzh_header(a, n, off, e);
+    if (r == LZH_OK && e->next > n) return LZH_BAD;
+    return r;
+}
+
+int lzh_header(const unsigned char *a, long n, long off, LZHENTRY *e)
 {
     const unsigned char *h;
     int level, nl, i;
@@ -69,16 +100,15 @@ int lzh_entry(const unsigned char *a, long n, long off, LZHENTRY *e)
         if (off + hsize > n || 22 + nl + 2 > hsize) return LZH_BAD;
         for (i = 0; i < nl && i < 63; i++) e->name[i] = (char)h[22 + i];
         e->crc = le16(h + 22 + nl);
+        e->time = le16(h + 15);
+        e->date = le16(h + 17);
         e->data = off + hsize;
         if (level == 1) {
             /* Extensions apres l'en-tete, comptees dans packed. */
-            long p = e->data - 2, sz;
-            while (p + 2 <= n && (sz = le16(a + p)) != 0) {
-                if (sz < 3 || p + 2 + sz > n) return LZH_BAD;
-                e->packed -= sz;
-                p += sz;
-            }
-            e->data = p + 2;
+            long after;
+            if (parse_ext(a, e->data - 2, n, e, &after)) return LZH_BAD;
+            e->packed -= after - e->data;
+            e->data = after;
             if (e->packed < 0) return LZH_BAD;
         }
     } else if (level == 2) {
@@ -86,22 +116,32 @@ int lzh_entry(const unsigned char *a, long n, long off, LZHENTRY *e)
         hsize = le16(h);
         if (hsize < 26 || off + hsize > n) return LZH_BAD;
         e->crc = le16(h + 21);
-        /* Nom dans l'extension de type 1. */
+        {
+            /* Heure Unix (secondes) a l'offset 15 -> date MS-DOS. */
+            long t = le32(h + 15), days = t / 86400, sec = t % 86400;
+            long y = 1970, m;
+            static const unsigned char mdays[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+            while (days >= 365 + ((y % 4) == 0)) { days -= 365 + ((y % 4) == 0); y++; }
+            for (m = 0; m < 12; m++) {
+                int md = mdays[m] + (m == 1 && (y % 4) == 0);
+                if (days < md) break;
+                days -= md;
+            }
+            if (y >= 1980 && y < 2108)
+                e->date = (unsigned short)(((y - 1980) << 9) | ((m + 1) << 5) | (days + 1));
+            e->time = (unsigned short)(((sec / 3600) << 11) | (((sec / 60) % 60) << 5) | ((sec % 60) / 2));
+        }
         p = off + 24;
-        while (p + 3 <= off + hsize) {
-            long sz = le16(a + p);
-            if (sz == 0) break;
-            if (sz < 3 || p + sz > off + hsize) return LZH_BAD;
-            if (a[p + 2] == 1)
-                for (i = 0; i < sz - 3 && i < 63; i++) e->name[i] = (char)a[p + 3 + i];
-            p += sz;
+        (void)p;
+        {
+            long after;
+            if (parse_ext(a, off + 24, off + hsize, e, &after)) return LZH_BAD;
         }
         e->data = off + hsize;
     } else {
         return LZH_BAD;
     }
     e->next = e->data + e->packed;
-    if (e->next > n) return LZH_BAD;
     return LZH_OK;
 }
 

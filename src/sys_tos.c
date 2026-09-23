@@ -55,6 +55,7 @@ long sys_create(const char *path, int attr) { return Fcreate(path, attr); }
 long sys_close(int h)                       { return Fclose(h); }
 long sys_read(int h, long n, void *buf)     { return Fread(h, n, buf); }
 long sys_write(int h, long n, const void *buf) { return Fwrite(h, n, buf); }
+long sys_seek(int h, long off, int mode)    { return Fseek(off, h, mode); }
 long sys_delete(const char *path)           { return Fdelete(path); }
 long sys_rename(const char *f, const char *t) { return Frename(f, t); }
 long sys_mkdir(const char *path)            { return Dcreate(path); }
@@ -67,6 +68,15 @@ long sys_settime(int h, unsigned short time, unsigned short date)
     td[0] = time;
     td[1] = date;
     return Fdatime(td, h, 1);
+}
+
+long sys_gettime(int h, unsigned short *time, unsigned short *date)
+{
+    unsigned short td[2];
+    long r = Fdatime(td, h, 0);
+    *time = td[0];
+    *date = td[1];
+    return r;
 }
 
 long sys_dfree(int drive, unsigned long *freeb, unsigned long *totalb)

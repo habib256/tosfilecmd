@@ -124,13 +124,21 @@ void panel_sort(PANEL *p)
 
 int panel_is_drives(const PANEL *p) { return p->path[0] == 0; }
 
-static int is_root(const char *path) { return strlen(path) == 3; }
+static int is_root(const PANEL *p) { return !p->vfs && strlen(p->path) == 3; }
+
+void panel_close_vfs(PANEL *p)
+{
+    if (!p->vfs) return;
+    src_remove(vfs_source(p->vfs));
+    vfs_close(p->vfs);
+    p->vfs = 0;
+}
 
 void panel_update_free(PANEL *p)
 {
     unsigned long total;
     p->free_ok = 0;
-    if (panel_is_drives(p)) return;
+    if (panel_is_drives(p) || p->vfs) return;
     if (sys_dfree(toupper((unsigned char)p->path[0]) - 'A', &p->freeb, &total) == 0)
         p->free_ok = 1;
 }
@@ -164,14 +172,17 @@ long panel_load(PANEL *p, const char *keep)
     p->err = 0;
     p->ntag = 0;
     p->tagbytes = 0;
-    if (!is_root(p->path)) {
+    if (!is_root(p)) {
         memset(&p->ent[0], 0, sizeof(FINFO));
         strcpy(p->ent[0].name, "..");
         p->ent[0].attr = FA_DIR;
         p->ent[0].pad = PF_UP;
         n = 1;
     }
-    if (path_join(pat, p->path, "*.*", 0)) r = TE_TOOLONG;
+    if (p->vfs) {
+        const SOURCE *s = vfs_source(p->vfs);
+        r = s->first(s->ctx, p->path, &f);
+    } else if (path_join(pat, p->path, "*.*", 0)) r = TE_TOOLONG;
     else r = sys_first(pat, FA_DIR | FA_HIDDEN | FA_SYSTEM | FA_RDONLY, &f);
     while (r == 0) {
         if (f.name[0] == '.' && (f.name[1] == 0 || (f.name[1] == '.' && f.name[2] == 0))) {
@@ -185,7 +196,10 @@ long panel_load(PANEL *p, const char *keep)
             f.pad = 0;
             p->ent[n++] = f;
         }
-        r = sys_next(&f);
+        if (p->vfs) {
+            const SOURCE *s = vfs_source(p->vfs);
+            r = s->next(s->ctx, &f);
+        } else r = sys_next(&f);
     }
     if (r != 0 && r != EFILNF && r != ENMFIL) p->err = r;
     p->n = n;
@@ -199,6 +213,7 @@ void panel_drives(PANEL *p, char select_drive)
 {
     unsigned long map = Drvmap();
     int d, n = 0;
+    panel_close_vfs(p);
     p->path[0] = 0;
     p->ntag = 0;
     p->tagbytes = 0;
@@ -271,7 +286,33 @@ long panel_enter(PANEL *p)
         return r;
     }
     if (f->pad & PF_UP) return panel_up(p);
-    if (!(f->attr & FA_DIR)) return 0;
+    if (!(f->attr & FA_DIR)) {
+        /* Une image ou une archive s'ouvre comme un dossier (pas une
+         * archive dans une archive). */
+        char file[PATH_MAX_TOSFC];
+        VFS *v;
+        if (p->vfs || vfs_kind_of_name(name) == VK_NONE) return 0;
+        if (strlen(p->path) + strlen(name) + 2 + 13 >= PATH_MAX_TOSFC) return TE_TOOLONG;
+        str_copy(file, p->path, sizeof file);
+        str_add(file, name, sizeof file);
+        str_copy(p->path, file, PATH_MAX_TOSFC);
+        str_add(p->path, "\\", PATH_MAX_TOSFC);
+        r = vfs_open(&v, file, p->path);
+        if (r) {
+            str_copy(p->path, old, PATH_MAX_TOSFC);
+            return r;
+        }
+        p->vfs = v;
+        src_add(vfs_source(v), vfs_root(v));
+        p->cur = p->top = 0;
+        r = panel_load(p, 0);
+        if (r && p->n <= 1) {
+            panel_close_vfs(p);
+            str_copy(p->path, old, PATH_MAX_TOSFC);
+            panel_load(p, name);
+        }
+        return r;
+    }
     /* Garder de quoi ajouter un nom de fichier 8.3 au chemin. */
     if (strlen(p->path) + strlen(name) + 1 + 13 >= PATH_MAX_TOSFC) return TE_TOOLONG;
     str_add(p->path, name, PATH_MAX_TOSFC);
@@ -292,10 +333,13 @@ long panel_up(PANEL *p)
     char *s;
 
     if (panel_is_drives(p)) return 0;
-    if (is_root(p->path)) {
+    if (is_root(p)) {
         panel_drives(p, p->path[0]);
         return 0;
     }
+    /* A la racine d'une image ou d'une archive : on la referme, et la
+     * selection revient sur son fichier (meme chemin sans le '\' final). */
+    if (p->vfs && !strcmp(p->path, vfs_root(p->vfs))) panel_close_vfs(p);
     l = (int)strlen(p->path);
     p->path[l - 1] = 0;
     s = strrchr(p->path, '\\');
@@ -399,7 +443,13 @@ void panel_draw(PANEL *p, int x, int active)
 
     /* Chemin dans le cadre du haut */
     line[0] = ' ';
-    str_copy(line + 1, panel_is_drives(p) ? "Drives" : p->path, 34);
+    if (panel_is_drives(p)) str_copy(line + 1, "Drives", 34);
+    else if (strlen(p->path) <= 33) str_copy(line + 1, p->path, 34);
+    else {
+        /* Trop long : la fin du chemin, la plus utile ("...\SUB\DIR\"). */
+        str_copy(line + 1, "...", 34);
+        str_add(line, p->path + strlen(p->path) - 30, sizeof line);
+    }
     str_add(line, " ", sizeof line);
     center(x + 1, 0, 38, line, active ? A_BARTXT : A_TITLE);
 
@@ -436,6 +486,9 @@ void panel_draw(PANEL *p, int x, int active)
         str_add(line, " bytes", sizeof line);
     } else if (panel_is_drives(p)) {
         str_copy(line, "RETURN opens a drive", sizeof line);
+    } else if (p->vfs && p->n > 0 && (p->ent[p->cur].pad & PF_UP)
+               && !strcmp(p->path, vfs_root(p->vfs))) {
+        str_copy(line, vfs_describe(p->vfs), sizeof line);
     } else if (p->n > 0) {
         FINFO *f = &p->ent[p->cur];
         if (f->pad & PF_UP) str_copy(line, "Parent folder", sizeof line);
@@ -454,7 +507,9 @@ void panel_draw(PANEL *p, int x, int active)
     scr_field(x + 1, 22, 38, line, p->ntag ? A_TAG : A_NORMAL);
 
     /* Place libre */
-    if (p->free_ok) {
+    if (p->vfs) {
+        center(x + 1, 23, 38, " Read-only ", A_FRAME);
+    } else if (p->free_ok) {
         line[0] = ' ';
         fmt_ulong(line + 1, p->freeb, ',');
         str_add(line, " bytes free ", sizeof line);

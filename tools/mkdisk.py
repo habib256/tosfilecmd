@@ -15,11 +15,15 @@ fabrique :
 
 Tout le contenu de demonstration est genere ici : aucun fichier tiers.
 """
+import io
 import os
 import sys
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import arcpack  # noqa: E402
 import fat12  # noqa: E402
+import lha  # noqa: E402
 import stpic  # noqa: E402
 from fat12 import ATTR_HIDDEN, ATTR_RO, dos_date, dos_time  # noqa: E402
 
@@ -81,6 +85,51 @@ def manual_text():
     return text.encode("ascii", "replace").replace(b"\n", b"\r\n")
 
 
+def demo_lzh():
+    members = [("readme.txt", b"This LHA archive was opened like a folder.\r\n"
+                              b"Copy files out of it with F5: they are read back.\r\n"),
+               ("texts\\lorem.txt", LOREM.encode("ascii") * 6),
+               ("texts\\letter.doc", letter_doc()),
+               ("long.txt", long_text()[:20000])]
+    return b"".join(lha.archive(n, d)[:-1] for n, d in members) + b"\0"
+
+
+def demo_zip(build_dir):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, fmt, res, gen in (("Test Card.pi1", stpic.degas, 0, stpic.testcard),
+                                    ("pictures/rings.pc1", stpic.degas_elite, 0, stpic.rings),
+                                    ("pictures/sunset.neo", stpic.neochrome, 0, stpic.sunset)):
+            pal, rows = gen()
+            z.writestr(zipfile.ZipInfo(name, (1990, 1, 1, 12, 0, 0)), fmt(res, pal, rows),
+                       zipfile.ZIP_DEFLATED)
+        z.writestr(zipfile.ZipInfo("pictures/", (1990, 1, 1, 12, 0, 0)), b"")
+        if build_dir:
+            z.writestr(zipfile.ZipInfo("welcome.ym", (2026, 9, 23, 12, 0, 0)),
+                       open(os.path.join(build_dir, "WELCOME.YM"), "rb").read(), zipfile.ZIP_STORED)
+    return buf.getvalue()
+
+
+def demo_arc():
+    return arcpack.archive([("READ.ME", b"An ARC archive from the BBS days.\r\n", 2),
+                            ("LOREM.TXT", LOREM.encode("ascii") * 5, 4),
+                            ("LONG.TXT", long_text()[:30000], 8),
+                            ("SHORT.TXT", b"Just one line.\r\n", 3)])
+
+
+def demo_floppy():
+    """Une disquette simple face compressee en MSA, avec un dossier."""
+    f = fat12.Builder("360k", label="OLDDISK")
+    f.add("README.TXT", b"A floppy image, opened like a folder.\r\n",
+          date=dos_date(1988, 5, 5), time=dos_time(10, 0))
+    f.mkdir("GAMES")
+    f.add("GAMES\\SCORES.TXT", b"1. TOSFC  99999\r\n2. ST     12345\r\n",
+          date=dos_date(1989, 12, 24))
+    f.add("GAMES\\HISCORE.DOC", b"Press RETURN on a file to read it from the image.\r\n",
+          date=dos_date(1989, 12, 24))
+    return fat12.msa(f.build(), spt=9, sides=1)
+
+
 def build(version, prg, geometry, build_dir=None):
     b = fat12.Builder(geometry, label="TOSFC")
     b.mkdir("AUTO")
@@ -132,10 +181,17 @@ def build(version, prg, geometry, build_dir=None):
         bm, spal = stpic.spectrum_demo()
         b.add("DEMO\\PICTURES\\RAINBOW.SPC", stpic.spc(bm, spal), date=dos_date(1991, 4, 1))
         b.add("DEMO\\PICTURES\\RAINBOW.SPU", stpic.spu(bm, spal), date=dos_date(1991, 4, 1))
+    b.mkdir("DEMO\\ARCHIVES")
+    arcdate = dict(date=dos_date(1994, 6, 6), time=dos_time(12, 0))
+    b.add("DEMO\\ARCHIVES\\TEXTS.LZH", demo_lzh(), **arcdate)
+    b.add("DEMO\\ARCHIVES\\OLDIES.ARC", demo_arc(), **arcdate)
+    if geometry == "720k":
+        b.add("DEMO\\ARCHIVES\\PICTURES.ZIP", demo_zip(build_dir), **arcdate)
+        b.add("DEMO\\ARCHIVES\\OLDDISK.MSA", demo_floppy(), **arcdate)
     if geometry == "720k":
         b.add("DEMO\\TEXTS\\MANUAL.TXT", manual_text())
         b.add("DEMO\\TEXTS\\LONG.TXT", long_text())
-        b.add("DEMO\\BIG.BIN", bytes((k * 31 + (k >> 8)) & 0xFF for k in range(120000)),
+        b.add("DEMO\\BIG.BIN", bytes((k * 31 + (k >> 8)) & 0xFF for k in range(90000)),
               date=dos_date(1995, 5, 5))
     return b.build()
 

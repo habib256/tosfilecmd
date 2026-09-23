@@ -325,6 +325,17 @@ long sys_write(int h, long n, const void *buf)
     return n;
 }
 
+long sys_seek(int h, long off, int mode)
+{
+    HANDLE *hp = get_handle(h);
+    long base;
+    if (!hp) return EIHNDL;
+    base = mode == 0 ? 0 : mode == 1 ? hp->pos : nodes[hp->node].size;
+    if (base + off < 0 || base + off > nodes[hp->node].size) return ERROR;
+    hp->pos = base + off;
+    return hp->pos;
+}
+
 long sys_delete(const char *path)
 {
     long code;
@@ -404,6 +415,15 @@ long sys_attrib(const char *path, int set, int attr)
     if (i < 0) return EFILNF;
     if (set) nodes[i].attr = (nodes[i].attr & FA_DIR) | (attr & ~FA_DIR);
     return nodes[i].attr;
+}
+
+long sys_gettime(int h, unsigned short *time, unsigned short *date)
+{
+    HANDLE *hp = get_handle(h);
+    if (!hp) return EIHNDL;
+    *time = nodes[hp->node].time;
+    *date = nodes[hp->node].date;
+    return 0;
 }
 
 long sys_settime(int h, unsigned short time, unsigned short date)

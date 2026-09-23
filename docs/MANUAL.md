@@ -22,7 +22,7 @@ lists the drives.
 ║    Name↓    │  Size   │  Date  │Time ║   column titles: the arrow marks the sort
 ║ ↑..         │     <UP>│        │     ║   the parent folder
 ║ MANY        │    <DIR>│23/09/26│12:00║
-║✓BIG      BIN│  120,000│05/05/95│12:00║   ✓ = tagged
+║✓BIG      BIN│   90,000│05/05/95│12:00║   ✓ = tagged
 ╟─────────────┴─────────┴────────┴─────╢
 ║BIG.BIN      Archive                  ║   the selected file, or the tag count
 ╚═════════ 467,968 bytes free ═════════╝

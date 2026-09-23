@@ -42,14 +42,19 @@ Spectrum 512 ; éditeur ; musique YM et SNDH en tâche de fond.
 - Le TOS d'Atari (1.00 à 2.06) et une vraie machine, pour tout J2 aussi
   (la routine Spectrum est réglée sur l'émulation de NeoST, fidèle à Hatari).
 
-## J3 — images disque et archives
+## J3 — images disque et archives (en cours)
 
-- `.ST` et `.MSA` ouvertes comme des dossiers en lecture seule, extraction.
+- ✅ `.ST` et `.MSA` ouvertes comme des dossiers en lecture seule (FAT12,
+  pistes MSA compressées), extraction par la copie ordinaire.
+- ✅ Archives LZH (`-lh0-`, `-lh5-`, niveaux 0 à 2), ZIP (stockés, deflate),
+  ARC (méthodes 1 à 4, 8, 9) : CRC vérifié, noms ramenés en 8.3 sans doublon,
+  conteneur modifié pendant l'ouverture → refus (`test_vfs`, `bench/archives.py`).
 - Lire une disquette en image, écrire une image sur disquette (`Floprd`,
   `Flopwr`), copier une disquette (un ou deux lecteurs), formater (`Flopfmt`,
   9/10/11 secteurs) : confirmation, cible affichée, volume du programme protégé.
-- Archives ARC, LZH (lh5) et ZIP (stockés et deflate) : extraction avec
-  création exclusive.
+- Plus tard : archive dans une archive, LZH `-lh1-`/`-lh6-`/`-lh7-`, ZIP64,
+  ZIP chiffrés (refusés proprement aujourd'hui : « Compression method not
+  supported »).
 
 ## J4 — outils
 
@@ -61,3 +66,15 @@ IDENT — en plugins chargés par `Pexec`, avec un SDK.
 
 - Des ROM TOS d'Atari dans l'arbre de test, ou une procédure pour les fournir.
 - Une option pour ne déclarer qu'un lecteur de disquette (`_nflops = 1`).
+
+### Livré par NeoST le 2026-09-23 (commit `c70dc1b`) — exploité
+
+- **Identité de build** : `bench/neost.py` compare le `commit` de
+  `neost-headless --version` à `git -C ../neost rev-parse --short=12 HEAD` et
+  refuse un binaire périmé (`NEOST_ANY_BUILD=1` pour passer outre). C'est un
+  binaire périmé qui avait fait échouer `bench/archives.py` (Fclose → EIHNDL).
+- **Trace GEMDOS avec résultat** (`NEOST_GEMDOS_TRACE=1`, sortie dans
+  `$BENCH_LOG`) : à utiliser tel quel pour tout souci de handle.
+- **`disks/diskA.st` de NeoST** : les bancs ne lisent jamais `neost.cfg`
+  (pas de `--from-cfg`) ; pour lancer l'interface de NeoST à la main, ne
+  monter que des copies jetables de nos disquettes, en A: comme en B:.

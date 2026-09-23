@@ -328,6 +328,35 @@ class Image:
         return problems
 
 
+def msa(img, spt=9, sides=2):
+    """Image .ST -> .MSA : pistes compressees par RLE $E5 quand ca gagne."""
+    tracks = len(img) // (512 * spt * sides)
+    out = bytearray(struct.pack(">HHHHH", 0x0E0F, spt, sides - 1, 0, tracks - 1))
+    tsize = 512 * spt
+    for t in range(tracks):
+        for side in range(sides):
+            off = (t * sides + side) * tsize
+            data = img[off:off + tsize]
+            packed = bytearray()
+            i = 0
+            while i < len(data):
+                c = data[i]
+                run = 1
+                while i + run < len(data) and data[i + run] == c and run < 65535:
+                    run += 1
+                if run >= 4 or c == 0xE5:
+                    packed += bytes([0xE5, c]) + struct.pack(">H", run)
+                    i += run
+                else:
+                    packed.append(c)
+                    i += 1
+            if len(packed) < tsize:
+                out += struct.pack(">H", len(packed)) + packed
+            else:
+                out += struct.pack(">H", tsize) + data
+    return bytes(out)
+
+
 def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)

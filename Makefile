@@ -30,7 +30,7 @@ LDFLAGS = -mcpu=68000 -nostdlib -T src/tosfc.ld -Wl,--emit-relocs \
 
 OBJS = crt0.o main.o screen.o input.o ui.o panel.o fsops.o prefs.o view.o picture.o \
        textview.o edit.o edbuf.o spec512.o music.o musicisr.o lzh.o ice.o ym.o sndh.o \
-       sys_tos.o libc.o
+       vfs.o inflate.o arc.o sys_tos.o libc.o
 OBJS := $(addprefix $(BUILD)/,$(OBJS))
 HDRS = $(wildcard src/*.h)
 
@@ -103,20 +103,28 @@ MUSIC_SRC = src/lzh.c src/ice.c src/ym.c src/sndh.c src/libc.c
 $(BUILD)/host/test_music: tests/test_music.c $(MUSIC_SRC) $(HDRS) | $(BUILD)
 	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_music.c $(MUSIC_SRC)
 
-$(BUILD)/host/data/.stamp: tests/gen_lzh.py tools/lha.py $(BUILD)/host/icetool
+VFS_SRC = src/vfs.c src/lzh.c src/inflate.c src/arc.c src/fsops.c src/libc.c tests/fakedos.c
+$(BUILD)/host/test_vfs: tests/test_vfs.c $(VFS_SRC) $(HDRS) | $(BUILD)
+	$(HOSTCC) $(HOST_CFLAGS) -o $@ tests/test_vfs.c $(VFS_SRC)
+
+$(BUILD)/host/data/.stamp: tests/gen_lzh.py tests/gen_vfs.py tools/lha.py tools/arcpack.py \
+                           tools/fat12.py $(BUILD)/host/icetool
 	$(PYTHON) tests/gen_lzh.py $(BUILD)/host/data
+	$(PYTHON) tests/gen_vfs.py $(BUILD)/host/data
 	for f in $(BUILD)/host/data/lzh_*.bin; do \
 	    b=$$(basename $$f .bin); b=$${b#lzh_}; \
 	    [ -s $$f ] && $(BUILD)/host/icetool p $$f $(BUILD)/host/data/ice_$$b.ice; \
 	done; touch $@
 
 test: $(BUILD)/host/test_fsops $(BUILD)/host/test_prefs $(BUILD)/host/test_view \
-      $(BUILD)/host/test_edit $(BUILD)/host/test_music $(BUILD)/host/data/.stamp $(BUILD)/TOSFC.PRG
+      $(BUILD)/host/test_edit $(BUILD)/host/test_music $(BUILD)/host/test_vfs \
+      $(BUILD)/host/data/.stamp $(BUILD)/TOSFC.PRG
 	$(BUILD)/host/test_fsops
 	$(BUILD)/host/test_prefs
 	$(BUILD)/host/test_view
 	$(BUILD)/host/test_edit
 	$(BUILD)/host/test_music $(BUILD)/host/data
+	$(BUILD)/host/test_vfs $(BUILD)/host/data
 	$(PYTHON) tests/test_lha.py
 	$(PYTHON) tests/test_fat12.py
 	$(PYTHON) tests/test_elf2prg.py $(BUILD)

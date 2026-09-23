@@ -89,7 +89,15 @@ def main():
     for fn in RECURSION:
         if fn not in frames:
             die("recursive function %s not found in the call graph" % fn)
-    need = deepest("main", frames, calls, frozenset()) + TOS_MARGIN
+    # Les sources de fichiers (images, archives : vfs.c) sont appelees par
+    # pointeur (SOURCE) depuis fsops, les visionneuses et la musique : leur
+    # pire chemin s'ajoute a tout le reste, par prudence.
+    src = max([deepest(f, frames, calls, frozenset())
+               for f in ("s_first", "s_next", "s_open", "s_read", "s_close") if f in frames] or [0])
+    if src == 0:
+        die("vfs.c sources not found in the call graph")
+    print("image/archive sources: worst case %d bytes" % src)
+    need = deepest("main", frames, calls, frozenset()) + src + TOS_MARGIN
     print("main stack: worst case %d bytes (reserved %d)" % (need, MAIN_STACK))
     if need > MAIN_STACK:
         die("main stack overflow: %d > %d" % (need, MAIN_STACK))
@@ -103,7 +111,7 @@ def main():
              for f in ("cb_ask", "cb_error", "cb_progress", "cb_cancel"))
     ops = max(deepest(f, frames, calls, frozenset())
               for f in ("cmd_copy", "cmd_delete")) + 64
-    total = ops + cb + TOS_MARGIN
+    total = ops + max(cb, src) + TOS_MARGIN
     print("operations + callbacks: worst case %d bytes (reserved %d)" % (total, MAIN_STACK))
     if total > MAIN_STACK:
         die("stack overflow through a callback: %d > %d" % (total, MAIN_STACK))

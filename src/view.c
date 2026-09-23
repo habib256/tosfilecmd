@@ -29,6 +29,7 @@ typedef struct {
 static void load_file(const char *path, long max, LOADED *l)
 {
     long h, n, cap = sys_avail() - MEM_RESERVE;
+    const SOURCE *s;
 
     l->data = 0;
     l->size = 0;
@@ -39,12 +40,13 @@ static void load_file(const char *path, long max, LOADED *l)
     cap &= ~1L;
     l->data = sys_alloc(cap + 2);
     if (!l->data) { l->err = ENSMEM; return; }
-    h = sys_open(path, 0);
+    s = src_of(path);                   /* fichier d'une image ou d'une archive ? */
+    h = s->open(s->ctx, path);
     if (h < 0) { l->err = h; return; }
     while (l->size < cap) {
         long want = cap - l->size;
         if (want > 32768L) want = 32768L;
-        n = sys_read((int)h, want, l->data + l->size);
+        n = s->read(s->ctx, h, want, l->data + l->size);
         if (n < 0) { l->err = n; break; }
         if (n == 0) break;
         l->size += n;
@@ -52,11 +54,11 @@ static void load_file(const char *path, long max, LOADED *l)
     if (!l->err && l->size == cap) {
         /* Un octet de plus ? Alors le fichier ne tient pas. */
         unsigned char probe[2];
-        n = sys_read((int)h, 1, probe);
+        n = s->read(s->ctx, h, 1, probe);
         if (n > 0) l->truncated = 1;
         else if (n < 0) l->err = n;
     }
-    sys_close((int)h);
+    s->close(s->ctx, h);
 }
 
 static void unload(LOADED *l)

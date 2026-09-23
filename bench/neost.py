@@ -14,6 +14,7 @@ Variables d'environnement :
   NEOST_ROM    l'image TOS (defaut : EmuTOS 192 Ko US de NeoST)
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -70,11 +71,35 @@ def load_symbols(path):
     return syms
 
 
+_CHECKED = []
+
+
+def check_build():
+    """Refuse un neost-headless plus vieux que ses sources : un binaire perime
+    a deja fait echouer un banc cinq fois (Fclose -> EIHNDL) sans que rien ne
+    le signale. `--version` donne `commit=<12 hex>[+xxxxxxxx]` ; le suffixe
+    (arbre de NeoST modifie) est tolere, le hash doit etre celui de HEAD.
+    NEOST_ANY_BUILD=1 passe outre (binaire hors depot)."""
+    if _CHECKED or os.environ.get("NEOST_ANY_BUILD"):
+        return
+    out = subprocess.run([NEOST, "--version"], capture_output=True, text=True).stdout
+    m = re.search(r"commit[ =]([0-9a-f]{12}|nogit)", out)
+    head = subprocess.run(["git", "-C", NEOST_DIR, "rev-parse", "--short=12", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+    if not m:
+        raise BenchError("neost-headless has no build identity (too old?): rebuild it\n%s" % out)
+    if head and m.group(1) != head:
+        raise BenchError("neost-headless is stale (built from %s, NeoST HEAD is %s): "
+                         "cmake --build %s" % (m.group(1), head, os.path.dirname(NEOST)))
+    _CHECKED.append(m.group(1))
+
+
 class NeoST:
     def __init__(self, disk=None, diskb=None, gemdos=None, machine="st",
                  mono=False, mem="1m", symbols=None, extra=(), disk_ro=False):
         if not os.path.exists(NEOST):
             raise BenchError("neost-headless not found: %s (set NEOST=...)" % NEOST)
+        check_build()
         args = [NEOST, ROM, "--machine", machine, "--mem", mem, "--fastfdc"]
         if disk:
             args += ["--disk", disk]

@@ -200,6 +200,7 @@ long music_play(const char *dir, const char *name)
     unsigned char *raw, *data;
     long h, n = 0, r, size, cap;
     int kind;
+    const SOURCE *src;
 
     music_stop();
     if (path_join(path, dir, name, 0)) return TE_TOOLONG;
@@ -208,16 +209,17 @@ long music_play(const char *dir, const char *name)
     if (cap < 16384) return ENSMEM;
     raw = sys_alloc(cap);
     if (!raw) return ENSMEM;
-    h = sys_open(path, 0);
+    src = src_of(path);                 /* image ou archive ouverte ? */
+    h = src->open(src->ctx, path);
     if (h < 0) { sys_free(raw); return h; }
     for (;;) {
-        r = sys_read((int)h, cap - n > 32768L ? 32768L : cap - n, raw + n);
-        if (r < 0) { sys_close((int)h); sys_free(raw); return r; }
+        r = src->read(src->ctx, h, cap - n > 32768L ? 32768L : cap - n, raw + n);
+        if (r < 0) { src->close(src->ctx, h); sys_free(raw); return r; }
         if (r == 0) break;
         n += r;
-        if (n >= cap) { sys_close((int)h); sys_free(raw); return ENSMEM; }
+        if (n >= cap) { src->close(src->ctx, h); sys_free(raw); return ENSMEM; }
     }
-    sys_close((int)h);
+    src->close(src->ctx, h);
     /* Rendre ce qui depasse (un SNDH non compresse garde la place de sa BSS). */
     Mshrink(raw, n + SNDH_EXTRA < cap ? n + SNDH_EXTRA : cap);
     if (n + SNDH_EXTRA < cap) cap = n + SNDH_EXTRA;

@@ -54,6 +54,10 @@
 #define TE_NOTPIC   -216L   /* pas une image reconnue */
 #define TE_BADPIC   -217L   /* image tronquee ou incoherente */
 #define TE_BADMUS   -218L   /* morceau illisible (YM, SNDH) */
+#define TE_BADARC   -219L   /* image ou archive malformee, donnees corrompues */
+#define TE_METHOD   -220L   /* methode de compression non geree */
+#define TE_RDONLYFS -221L   /* dans une image ou une archive : lecture seule */
+#define TE_BIG      -222L   /* trop grand pour la memoire libre */
 
 /* Attributs FAT. */
 #define FA_RDONLY 0x01
@@ -86,12 +90,14 @@ long sys_create(const char *path, int attr);
 long sys_close(int h);
 long sys_read(int h, long n, void *buf);
 long sys_write(int h, long n, const void *buf);
+long sys_seek(int h, long offset, int mode);   /* 0 debut, 1 courant, 2 fin */
 long sys_delete(const char *path);
 long sys_rename(const char *from, const char *to);
 long sys_mkdir(const char *path);
 long sys_rmdir(const char *path);
 long sys_attrib(const char *path, int set, int attr);   /* renvoie l'attribut */
 long sys_settime(int h, unsigned short time, unsigned short date);
+long sys_gettime(int h, unsigned short *time, unsigned short *date);
 long sys_dfree(int drive, unsigned long *freeb, unsigned long *totalb);
 
 void *sys_alloc(long n);

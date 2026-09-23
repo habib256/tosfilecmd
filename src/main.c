@@ -14,6 +14,7 @@
 #include "music.h"
 #include "picture.h"
 #include "version.h"
+#include "disk.h"
 
 #define Cconws(s) TRAP_WL(1, 0x09, s)
 #define Cconin()  TRAP_W(1, 0x01)
@@ -31,7 +32,7 @@ static int quit;
 typedef struct { const char *key, *label; short cmd; } KEYBAR;
 enum { C_HELP, C_COPY, C_MOVE, C_REN, C_DEL, C_MKDIR, C_ATTR, C_SORT,
        C_DRIVES, C_OPTS, C_QUIT, C_TEXT, C_IMAGE, C_HEX, C_VIEW, C_EDIT, C_MUSIC,
-       C_PAUSE, C_NCMD };
+       C_PAUSE, C_FLOPPY, C_NCMD };
 /* 80 colonnes tout juste : les libelles sont courts. */
 static const KEYBAR keybar[] = {
     { "?", "Help", C_HELP }, { "T", "View", C_TEXT }, { "I", "Pic", C_IMAGE },
@@ -414,6 +415,280 @@ static void cmd_attrib(void)
     reload_both();
 }
 
+/* ---- Disquettes ---- */
+
+static DISK dsk;                        /* garde la disquette du programme */
+
+/* "texte A:" : le lecteur dev ajoute en fin de ligne. */
+static void with_drive(char *out, int cap, const char *text, int dev)
+{
+    char dv[3];
+    dv[0] = (char)('A' + dev);
+    dv[1] = ':';
+    dv[2] = 0;
+    str_copy(out, text, cap);
+    str_add(out, dv, cap);
+}
+
+static int disk_progress(DISK *d, long done, long total)
+{
+    (void)d;
+    ui_progress("", (unsigned long)done, (unsigned long)total, done, total);
+    return in_escape();
+}
+
+static int disk_insert(DISK *d, int which, int dev, int again)
+{
+    static const char *const bt[] = { "OK", "Cancel" };
+    const char *lines[3];
+    char l1[48];
+    (void)d;
+    with_drive(l1, sizeof l1, which ? "Insert the TARGET floppy in drive "
+                                    : "Insert the SOURCE floppy in drive ", dev);
+    lines[0] = l1;
+    lines[1] = !again ? "then press RETURN." : which
+               ? "That is the source floppy (or an earlier copy)."
+               : "That is not the source floppy.";
+    return ui_dialog("Disk copy", lines, 2, bt, 2, 0) == 0;
+}
+
+static int pick_drive(const char *title, const char *what)
+{
+    static const char *const bt[] = { "A:", "B:", "Cancel" };
+    const char *lines[1];
+    int r;
+    if (sys_nflops() < 2) return ui_confirm(title, what, "Drive A:", 1) ? 0 : -1;
+    lines[0] = what;
+    r = ui_dialog(title, lines, 1, bt, 3, 0);
+    return r == 0 || r == 1 ? r : -1;
+}
+
+/* Le lecteur physique ; avec un seul lecteur, B: est A:. */
+static int floppy_unit(char letter)
+{
+    int d = toupper((unsigned char)letter) - 'A';
+    if (d != 0 && d != 1) return -1;
+    return sys_nflops() < 2 ? 0 : d;
+}
+
+/* Avant d'ecrire sur dev : plus aucun panneau n'y garde une archive ouverte. */
+static void leave_floppy(int dev)
+{
+    int i;
+    for (i = 0; i < 2; i++) {
+        PANEL *p = &panels[i];
+        if (p->vfs && floppy_unit(p->path[0]) == floppy_unit((char)('A' + dev))) {
+            char *s;
+            str_copy(p->path, vfs_root(p->vfs), PATH_MAX_TOSFC);
+            panel_close_vfs(p);
+            p->path[strlen(p->path) - 1] = 0;
+            s = strrchr(p->path, '\\');
+            if (s) s[1] = 0;
+        }
+    }
+}
+
+/* Memoire de travail : presque tout ce qui reste. */
+static long disk_mem(void)
+{
+    long n = sys_avail() - 32768L;
+    if (n > 600L * 1024) n = 600L * 1024;
+    if (n < DISK_WORK + 3L * 512 * DISK_SPT_MAX) return 0;
+    dsk.buf = sys_alloc(n);
+    dsk.bufsize = dsk.buf ? n : 0;
+    return dsk.bufsize;
+}
+
+static void disk_done(const char *title, int dev, long r, int wrote)
+{
+    char where[40], num[12];
+    sys_free(dsk.buf);
+    dsk.buf = 0;
+    if (wrote) sys_mediach(dev);
+    reload_both();
+    if (!r) return;
+    where[0] = 0;
+    if (dsk.track_err >= 0) {
+        str_copy(where, "Track ", sizeof where);
+        fmt_ulong(num, (unsigned long)dsk.track_err, 0);
+        str_add(where, num, sizeof where);
+    }
+    if (wrote && r != TE_PROGDISK && r != TE_SAMEDISK && r != EWRPRO && r != TE_SELF
+        && r != TE_NOFLOPPY && r != ENSMEM && (r != TE_CANCEL || dsk.track_err < 0)) {
+        str_add(where, where[0] ? " - " : "", sizeof where);
+        str_add(where, "the floppy is incomplete", sizeof where);
+    }
+    ui_error(title, where, r);
+}
+
+static void floppy_read(void)
+{
+    static FLOPSRC f;
+    PANEL *dst = &panels[1 - active];
+    FINFO it;
+    GEOM g;
+    unsigned char boot[512];
+    char name[14], norm[13], desc[48], prompt[64];
+    long r;
+    int dev;
+
+    if (panel_is_drives(dst) || dst->vfs) {
+        ui_message("Read floppy", "Open the folder for the image", "in the other panel first.");
+        return;
+    }
+    dev = pick_drive("Read floppy", "Make an image file of the floppy in:");
+    if (dev < 0) return;
+    if (floppy_unit(dst->path[0]) == floppy_unit((char)('A' + dev))) {
+        ui_message("Read floppy", "The image cannot go on the floppy", "that is being read.");
+        return;
+    }
+    r = disk_probe(&dsk, dev, boot, &g);
+    if (r) { ui_error("Cannot read the floppy", "", r); return; }
+    disk_describe(desc, &g);
+    str_copy(prompt, desc, sizeof prompt);
+    str_add(prompt, ". Image name:", sizeof prompt);
+    str_copy(name, "DISK.ST", sizeof name);
+    if (!ui_input("Read floppy", prompt, name, 13) || !name[0]) return;
+    r = name_normalize(name, norm);
+    if (r) { ui_error("Read floppy", name, r); return; }
+    r = disk_source(&f, &dsk, dev, norm);
+    if (r) { ui_error("Cannot read the floppy", "", r); return; }
+    ops_setup();
+    ops.src = &f.src;
+    r = ops_begin(&ops);
+    if (!r) r = f.src.first(f.src.ctx, "A:\\", &it);
+    if (!r) r = ops_scan(&ops, "A:\\", &it, 1);
+    if (r) ui_error("Cannot start", "", r);
+    else {
+        ui_progress_open("Reading floppy");
+        ui_progress("", 0, ops.bytes_total, 0, 1);
+        ops_copy(&ops, "A:\\", &it, 1, dst->path, 0);
+        ui_progress_close();
+    }
+    ops_end(&ops);
+    disk_source_end(&f);
+    reload_both();
+    if (!r && ops.files_done == 1) panel_load(dst, norm);
+}
+
+static void floppy_write(void)
+{
+    static const char *const bt[] = { "Write", "Cancel" };
+    PANEL *p = &panels[active];
+    FINFO *f = current_real();
+    const char *lines[3];
+    char path[PATH_MAX_TOSFC], l2[40];
+    long r;
+    int dev, kind;
+
+    kind = f && !(f->attr & FA_DIR) ? vfs_kind_of_name(f->name) : VK_NONE;
+    if (kind != VK_IMAGE || p->vfs) {
+        ui_message("Write floppy", "Select a .ST or .MSA image file", "in the active panel first.");
+        return;
+    }
+    if (path_join(path, p->path, f->name, 0)) return;
+    dev = pick_drive("Write floppy", "Write the image to the floppy in:");
+    if (dev < 0) return;
+    with_drive(l2, sizeof l2, "to the floppy in drive ", dev);
+    lines[0] = f->name;
+    lines[1] = l2;
+    lines[2] = "Everything on that floppy is replaced.";
+    if (ui_dialog("Write floppy", lines, 3, bt, 2, 1) != 0) return;
+    if (!disk_mem()) { ui_error("Write floppy", "", ENSMEM); return; }
+    leave_floppy(dev);
+    dsk.progress = disk_progress;
+    ui_progress_open("Writing floppy");
+    r = disk_write_image(&dsk, path, dev);
+    ui_progress_close();
+    disk_done("Floppy not written", dev, r, 1);
+}
+
+static void floppy_copy(void)
+{
+    static const char *const two[] = { "A: to B:", "B: to A:", "One drive", "Cancel" };
+    static const char *const bt[] = { "Duplicate", "Cancel" };
+    const char *lines[3];
+    char l1[48];
+    long r;
+    int src = 0, dst = 0, k;
+
+    if (sys_nflops() >= 2) {
+        lines[0] = "Copy a whole floppy:";
+        k = ui_dialog("Disk copy", lines, 1, two, 4, 0);
+        if (k < 0 || k == 3) return;
+        if (k == 0) dst = 1;
+        if (k == 1) src = 1;
+    }
+    {
+        char t[24];
+        with_drive(t, sizeof t, "From drive ", src);
+        str_add(t, " to drive ", sizeof t);
+        with_drive(l1, sizeof l1, t, dst);
+    }
+    lines[0] = l1;
+    lines[1] = src == dst ? "You will swap the floppies a few times." : "";
+    lines[2] = "Everything on the target floppy is replaced.";
+    if (ui_dialog("Disk copy", lines, 3, bt, 2, 1) != 0) return;
+    if (!disk_mem()) { ui_error("Disk copy", "", ENSMEM); return; }
+    leave_floppy(src);
+    leave_floppy(dst);
+    dsk.progress = disk_progress;
+    dsk.insert = disk_insert;
+    ui_progress_open("Copying floppy");
+    r = disk_copy(&dsk, src, dst);
+    ui_progress_close();
+    dsk.insert = 0;
+    disk_done("Floppy not copied", dst, r, 1);
+    if (src != dst) sys_mediach(src);
+}
+
+static void floppy_format(void)
+{
+    static const char *const kinds[] = { "720K", "800K", "880K", "360K", "Cancel" };
+    static const char *const bt[] = { "Format", "Cancel" };
+    static const signed char spt[] = { 9, 10, 11, 9 }, sides[] = { 2, 2, 2, 1 };
+    const char *lines[4];
+    char l1[40];
+    long r;
+    int dev, k;
+
+    dev = pick_drive("Format", "Format the floppy in:");
+    if (dev < 0) return;
+    lines[0] = "720K: 9 sectors, 2 sides (standard)";
+    lines[1] = "800K: 10 sectors    880K: 11 sectors";
+    lines[2] = "360K: 9 sectors, 1 side (SF354 drive)";
+    k = ui_dialog("Format", lines, 3, kinds, 5, 0);
+    if (k < 0 || k > 3) return;
+    with_drive(l1, sizeof l1, "Format the floppy in drive ", dev);
+    lines[0] = l1;
+    lines[1] = "Everything on it is lost.";
+    if (ui_dialog("Format", lines, 2, bt, 2, 1) != 0) return;
+    if (!disk_mem()) { ui_error("Format", "", ENSMEM); return; }
+    leave_floppy(dev);
+    dsk.progress = disk_progress;
+    ui_progress_open("Formatting");
+    r = disk_format(&dsk, dev, spt[k], sides[k]);
+    ui_progress_close();
+    disk_done("Floppy not formatted", dev, r, 1);
+}
+
+static void cmd_floppy(void)
+{
+    static const char *const bt[] = { "Read", "Write", "Dup", "Format", "Cancel" };
+    static const char *const lines[] = {
+        "Read    floppy -> image file (.ST)",
+        "Write   image file (.ST, .MSA) -> floppy",
+        "Dup     copy a whole floppy",
+        "Format  a new, empty floppy",
+    };
+    switch (ui_dialog("Floppy", lines, 4, bt, 5, 0)) {
+    case 0: floppy_read(); break;
+    case 1: floppy_write(); break;
+    case 2: floppy_copy(); break;
+    case 3: floppy_format(); break;
+    }
+}
+
 static void cmd_sort(PANEL *p, int mode)
 {
     FINFO *f = panel_current(p);
@@ -454,7 +729,7 @@ static void cmd_help(void)
         "R            rename               K  F7    make a folder",
         "D  F8        delete               A  F2    attributes",
         "S  F9        sort: name, ext, size, date, disk order",
-        "O            options (verify, hidden files, save settings)",
+        "O            options          F        floppy: image, copy, format",
         "?  HELP  F1  this page            Q  F10   quit",
         "Mouse: click selects, click again opens; right click tags;",
         "click a column title to sort, the path to go up.",
@@ -602,6 +877,7 @@ static void do_cmd(int c)
         break;
     }
     case C_PAUSE: music_pause(); break;
+    case C_FLOPPY: cmd_floppy(); break;
     case C_MUSIC: cmd_music(); break;
     case C_QUIT:
         if (ui_confirm("Quit", "Leave " TOSFC_NAME "?", 0, 1)) {
@@ -687,6 +963,7 @@ static void on_key(EVENT *e)
     if (c == 'H') { do_cmd(C_HEX); return; }
     if (c == 'P') { do_cmd(C_PAUSE); return; }
     if (c == 'M') { do_cmd(C_MUSIC); return; }
+    if (c == 'F') { do_cmd(C_FLOPPY); return; }
     for (i = 0; i < NKEYBAR; i++)
         if (c == keybar[i].key[0]) { do_cmd(keybar[i].cmd); return; }
 }
@@ -818,6 +1095,9 @@ int main(void)
     in_init();
     ui_critic_install();
     init_home();
+    /* La disquette du programme (s'il en vient) ne sera jamais ecrasee. */
+    dsk.prog_dev = -1;
+    if (floppy_unit(home[0]) >= 0) disk_note_program(&dsk, floppy_unit(home[0]));
     init_panels();
 
     while (!quit) {

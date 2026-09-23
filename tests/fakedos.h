@@ -35,4 +35,31 @@ int  fd_attr(const char *path);
 int  fd_count(char drive);
 int  fd_open_handles(void);
 
+/* ---- Fausses disquettes ----
+ * FD_DISKS disquettes numerotees, placees dans les lecteurs A: et B:
+ * (fd_drive[dev] = numero, -1 vide). Chaque piste (cylindre, face) a son
+ * nombre de secteurs formates (0 = jamais formatee). */
+#define FD_DISKS  6
+#define FD_CYLS   86
+#define FD_SPT    11
+extern int fd_drive[2];
+extern int fd_nflops;                   /* sys_nflops() */
+extern long fd_mediach[2];              /* appels de sys_mediach par lecteur */
+extern long fd_flop_reads, fd_flop_writes, fd_flop_formats;
+/* Pannes : la piste (cyl * 2 + face) est illisible fd_bad_reads fois de suite
+ * (-1 : toujours) ; une ecriture sur fd_weak_cyl stocke un octet faux ;
+ * le formatage n'accepte que fd_fmt_only_spt secteurs (0 : tous) ; la Nieme
+ * lecture d'une disquette rend un octet faux (disquette qui "bouge"). */
+extern int fd_bad_track, fd_bad_reads, fd_weak_cyl, fd_fmt_only_spt, fd_flaky_read;
+/* Journal des cylindres ecrits, dans l'ordre. */
+extern int fd_write_log[FD_CYLS * 2 * 4], fd_write_log_n;
+
+void fd_disk_blank(int k);
+/* Disquette k formatee (spt, sides, cylindres d'apres la taille), remplie
+ * avec image[size]. */
+void fd_disk_load(int k, const unsigned char *image, long size, int spt, int sides);
+/* Contenu lineaire (cyls x sides x spt) ; 0 si une piste n'a pas ce format. */
+int  fd_disk_dump(int k, unsigned char *out, int spt, int sides, int cyls);
+void fd_disk_wprot(int k, int on);
+
 #endif

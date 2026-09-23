@@ -96,11 +96,11 @@ def check_build():
 
 class NeoST:
     def __init__(self, disk=None, diskb=None, gemdos=None, machine="st",
-                 mono=False, mem="1m", symbols=None, extra=(), disk_ro=False):
+                 mono=False, mem="1m", symbols=None, extra=(), disk_ro=False, fastfdc=True):
         if not os.path.exists(NEOST):
             raise BenchError("neost-headless not found: %s (set NEOST=...)" % NEOST)
         check_build()
-        args = [NEOST, ROM, "--machine", machine, "--mem", mem, "--fastfdc"]
+        args = [NEOST, ROM, "--machine", machine, "--mem", mem] + (["--fastfdc"] if fastfdc else [])
         if disk:
             args += ["--disk", disk]
         if diskb:

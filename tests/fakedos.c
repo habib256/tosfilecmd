@@ -38,6 +38,8 @@ static int writes_seen;
 /* Recherche en cours. */
 static int search_list[MAXN], search_n, search_i;
 
+void fd_floppy_reset(void);
+
 static int injected(int op, long *code)
 {
     fd_calls[op]++;
@@ -64,6 +66,7 @@ void fd_reset(void)
     fd_cancel_after = 0;
     writes_seen = 0;
     search_n = search_i = 0;
+    fd_floppy_reset();
 }
 
 static void upper(char *d, const char *s)
@@ -447,3 +450,131 @@ long sys_dfree(int drive, unsigned long *freeb, unsigned long *totalb)
 void *sys_alloc(long n) { return malloc(n); }
 long sys_avail(void) { return 4L * 1024 * 1024; }
 void sys_free(void *p) { free(p); }
+
+/* ---- Fausses disquettes ---- */
+
+typedef struct {
+    int used, wprot;
+    unsigned char spt[FD_CYLS][2];
+    unsigned char data[FD_CYLS][2][FD_SPT][512];
+} FDISK;
+
+static FDISK fdisks[FD_DISKS];
+int fd_drive[2] = { -1, -1 };
+int fd_nflops = 2;
+long fd_mediach[2];
+long fd_flop_reads, fd_flop_writes, fd_flop_formats;
+int fd_bad_track = -1, fd_bad_reads, fd_weak_cyl = -1, fd_fmt_only_spt, fd_flaky_read;
+int fd_write_log[FD_CYLS * 2 * 4], fd_write_log_n;
+
+void fd_disk_blank(int k)
+{
+    memset(&fdisks[k], 0, sizeof fdisks[k]);
+    fdisks[k].used = 1;
+}
+
+void fd_disk_load(int k, const unsigned char *image, long size, int spt, int sides)
+{
+    int c, s, cyls = (int)(size / (512L * spt * sides));
+    fd_disk_blank(k);
+    for (c = 0; c < cyls; c++)
+        for (s = 0; s < sides; s++) {
+            fdisks[k].spt[c][s] = (unsigned char)spt;
+            memcpy(fdisks[k].data[c][s], image + ((long)c * sides + s) * spt * 512, (size_t)spt * 512);
+        }
+}
+
+int fd_disk_dump(int k, unsigned char *out, int spt, int sides, int cyls)
+{
+    int c, s;
+    for (c = 0; c < cyls; c++)
+        for (s = 0; s < sides; s++) {
+            if (fdisks[k].spt[c][s] != spt) return 0;
+            memcpy(out + ((long)c * sides + s) * spt * 512, fdisks[k].data[c][s], (size_t)spt * 512);
+        }
+    return 1;
+}
+
+void fd_disk_wprot(int k, int on) { fdisks[k].wprot = on; }
+
+static FDISK *drive(int dev)
+{
+    if (dev < 0 || dev > 1 || (dev == 1 && fd_nflops < 2) || fd_drive[dev] < 0) return 0;
+    return &fdisks[fd_drive[dev]];
+}
+
+static long check_rw(FDISK *f, int sect, int track, int side, int count)
+{
+    if (!f) return EDRVNR;
+    if (track < 0 || track >= FD_CYLS || side < 0 || side > 1 || sect < 1 || count < 1) return ESECNF;
+    if (sect + count - 1 > f->spt[track][side]) return ESECNF;
+    return 0;
+}
+
+long sys_floprd(void *buf, int dev, int sect, int track, int side, int count)
+{
+    FDISK *f = drive(dev);
+    long r = check_rw(f, sect, track, side, count);
+    fd_flop_reads++;
+    if (r) return r;
+    if (fd_bad_track == track * 2 + side && fd_bad_reads != 0) {
+        if (fd_bad_reads > 0) fd_bad_reads--;
+        return EREADF;
+    }
+    memcpy(buf, f->data[track][side][sect - 1], (size_t)count * 512);
+    if (fd_flaky_read > 0 && --fd_flaky_read == 0) ((unsigned char *)buf)[count * 512 - 1] ^= 0x40;
+    return 0;
+}
+
+long sys_flopwr(const void *buf, int dev, int sect, int track, int side, int count)
+{
+    FDISK *f = drive(dev);
+    long r = check_rw(f, sect, track, side, count);
+    fd_flop_writes++;
+    if (r) return r;
+    if (f->wprot) return EWRPRO;
+    memcpy(f->data[track][side][sect - 1], buf, (size_t)count * 512);
+    if (track == fd_weak_cyl) f->data[track][side][sect - 1][100] ^= 1;
+    if (fd_write_log_n < (int)(sizeof fd_write_log / sizeof fd_write_log[0]))
+        fd_write_log[fd_write_log_n++] = track;
+    return 0;
+}
+
+long sys_flopfmt(void *buf, int dev, int spt, int track, int side)
+{
+    FDISK *f = drive(dev);
+    (void)buf;
+    fd_flop_formats++;
+    if (!f) return EDRVNR;
+    if (track < 0 || track >= FD_CYLS || side < 0 || side > 1 || spt < 1 || spt > FD_SPT) return ESECNF;
+    if (f->wprot) return EWRPRO;
+    if (fd_fmt_only_spt && spt != fd_fmt_only_spt) return EWRITF;
+    f->spt[track][side] = (unsigned char)spt;
+    memset(f->data[track][side], 0xe5, sizeof f->data[track][side]);
+    return 0;
+}
+
+int sys_nflops(void) { return fd_nflops; }
+void sys_mediach(int dev) { if (dev >= 0 && dev < 2) fd_mediach[dev]++; }
+long sys_random(void) { static unsigned long x = 12345; x = x * 1103515245UL + 12345UL; return (long)((x >> 8) & 0xffffff); }
+void sys_now(unsigned short *time, unsigned short *date)
+{
+    *time = (12 << 11) | (34 << 5);
+    *date = (46 << 9) | (9 << 5) | 23;
+}
+
+void fd_floppy_reset(void)
+{
+    int k;
+    for (k = 0; k < FD_DISKS; k++) fdisks[k].used = 0;
+    fd_drive[0] = fd_drive[1] = -1;
+    fd_nflops = 2;
+    fd_mediach[0] = fd_mediach[1] = 0;
+    fd_flop_reads = fd_flop_writes = fd_flop_formats = 0;
+    fd_bad_track = -1;
+    fd_bad_reads = 0;
+    fd_weak_cyl = -1;
+    fd_fmt_only_spt = 0;
+    fd_flaky_read = 0;
+    fd_write_log_n = 0;
+}

@@ -22,6 +22,7 @@
 #define EREADF  -11L
 #define EWRPRO  -13L
 #define E_CHNG  -14L
+#define EBADSF  -16L
 #define EOTHER  -17L
 #define EFILNF  -33L
 #define EPTHNF  -34L
@@ -58,6 +59,9 @@
 #define TE_METHOD   -220L   /* methode de compression non geree */
 #define TE_RDONLYFS -221L   /* dans une image ou une archive : lecture seule */
 #define TE_BIG      -222L   /* trop grand pour la memoire libre */
+#define TE_NOFLOPPY -223L   /* disquette ou image de format inconnu */
+#define TE_PROGDISK -224L   /* la disquette de TOSFC : jamais ecrasee */
+#define TE_SAMEDISK -225L   /* la cible est la disquette source (ou une copie) */
 
 /* Attributs FAT. */
 #define FA_RDONLY 0x01
@@ -99,6 +103,18 @@ long sys_attrib(const char *path, int set, int attr);   /* renvoie l'attribut */
 long sys_settime(int h, unsigned short time, unsigned short date);
 long sys_gettime(int h, unsigned short *time, unsigned short *date);
 long sys_dfree(int drive, unsigned long *freeb, unsigned long *totalb);
+
+/* Disquettes (XBIOS). dev : 0 = A:, 1 = B: ; sect a partir de 1. */
+long sys_floprd(void *buf, int dev, int sect, int track, int side, int count);
+long sys_flopwr(const void *buf, int dev, int sect, int track, int side, int count);
+/* Formate une piste (entrelacement 1, secteurs remplis de $E5) ; buf :
+ * au moins 8 Ko de travail. */
+long sys_flopfmt(void *buf, int dev, int spt, int track, int side);
+int  sys_nflops(void);                  /* lecteurs de disquette branches */
+/* Oblige GEMDOS a relire la disquette (apres des ecritures XBIOS). */
+void sys_mediach(int dev);
+long sys_random(void);                  /* 24 bits pseudo-aleatoires */
+void sys_now(unsigned short *time, unsigned short *date);
 
 void *sys_alloc(long n);
 long  sys_avail(void);

@@ -98,3 +98,44 @@ void *sys_alloc(long n)
 
 long sys_avail(void) { return Malloc(-1L); }
 void sys_free(void *p) { if (p) Mfree(p); }
+
+/* ---- disquettes ---- */
+
+long x_floprd(void *buf, int dev, int sect, int track, int side, int count);
+long x_flopwr(const void *buf, int dev, int sect, int track, int side, int count);
+long x_flopfmt(void *buf, int dev, int spt, int track, int side);
+void x_mediach(int dev);
+
+long sys_floprd(void *buf, int dev, int sect, int track, int side, int count)
+{
+    return x_floprd(buf, dev, sect, track, side, count);
+}
+
+long sys_flopwr(const void *buf, int dev, int sect, int track, int side, int count)
+{
+    return x_flopwr(buf, dev, sect, track, side, count);
+}
+
+long sys_flopfmt(void *buf, int dev, int spt, int track, int side)
+{
+    return x_flopfmt(buf, dev, spt, track, side);
+}
+
+void sys_mediach(int dev) { x_mediach(dev); }
+
+static short nflops;
+static long read_nflops(void) { nflops = *(volatile short *)0x4a6; return 0; }
+
+int sys_nflops(void)
+{
+    Supexec(read_nflops);
+    return nflops;
+}
+
+long sys_random(void) { return TRAP_W(14, 17) & 0xffffffL; }
+
+void sys_now(unsigned short *time, unsigned short *date)
+{
+    *date = (unsigned short)TRAP_W(1, 0x2a);    /* Tgetdate */
+    *time = (unsigned short)TRAP_W(1, 0x2c);    /* Tgettime */
+}

@@ -93,7 +93,8 @@ def main():
     # pointeur (SOURCE) depuis fsops, les visionneuses et la musique : leur
     # pire chemin s'ajoute a tout le reste, par prudence.
     src = max([deepest(f, frames, calls, frozenset())
-               for f in ("s_first", "s_next", "s_open", "s_read", "s_close") if f in frames] or [0])
+               for f in ("s_first", "s_next", "s_open", "s_read", "s_close",
+                         "f_first", "f_next", "f_open", "f_read", "f_close") if f in frames] or [0])
     if src == 0:
         die("vfs.c sources not found in the call graph")
     print("image/archive sources: worst case %d bytes" % src)

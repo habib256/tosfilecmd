@@ -103,6 +103,7 @@ const char *err_text(long e)
     case EREADF:  return "Read fault";
     case EWRPRO:  return "Disk is write-protected";
     case E_CHNG:  return "Disk was changed";
+    case EBADSF:  return "Bad sectors: the drive cannot format this";
     case EOTHER:  return "Insert the other disk";
     case EFILNF:  return "File not found";
     case EPTHNF:  return "Path not found";
@@ -136,8 +137,16 @@ const char *err_text(long e)
     case TE_METHOD:   return "Compression method not supported";
     case TE_RDONLYFS: return "Read-only: image or archive";
     case TE_BIG:      return "File too big for memory";
+    case TE_NOFLOPPY: return "Unknown floppy format";
+    case TE_PROGDISK: return "This is the TOS File Cmd disk";
+    case TE_SAMEDISK: return "Same disk as the source";
     }
-    return "Unexpected error";
+    {
+        static char other[24];
+        str_copy(other, "TOS error -", sizeof other);
+        fmt_ulong(other + 11, (unsigned long)-e, 0);
+        return other;
+    }
 }
 
 /* ---- Sources ---- */

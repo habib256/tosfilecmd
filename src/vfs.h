@@ -54,4 +54,8 @@ int vfs_contains(const VFS *v, const char *path);
  * remplaces), unique parmi taken(ctx, nom) ; out[13]. */
 void vfs_name83(const char *in, char *out, int (*taken)(void *ctx, const char *n), void *ctx);
 
+/* Piste MSA compressee (RLE $E5) z[len] -> out[want] ; 0 ou TE_BADARC.
+ * out et z ne doivent pas se chevaucher. */
+long msa_unpack(const unsigned char *z, long len, unsigned char *out, long want);
+
 #endif

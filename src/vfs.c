@@ -259,10 +259,32 @@ static unsigned int be16(const unsigned char *p) { return (p[0] << 8) | p[1]; }
 
 /* ---- images : secteurs ---- */
 
+long msa_unpack(const unsigned char *z, long len, unsigned char *out, long want)
+{
+    long i = 0, o = 0;
+    while (i < len) {
+        unsigned char c = z[i++];
+        if (c == 0xe5) {
+            long cnt;
+            if (i + 3 > len) return TE_BADARC;
+            c = z[i];
+            cnt = be16(z + i + 1);
+            i += 3;
+            if (o + cnt > want) return TE_BADARC;
+            memset(out + o, c, cnt);
+            o += cnt;
+        } else {
+            if (o >= want) return TE_BADARC;
+            out[o++] = c;
+        }
+    }
+    return o == want ? 0 : TE_BADARC;
+}
+
 static long msa_track(VFS *v, long index)
 {
     unsigned char hdr[2];
-    long len, r, want = (long)v->spt * 512, i = 0, o = 0;
+    long len, r, want = (long)v->spt * 512;
     if (v->trk_cached == index) return 0;
     v->trk_cached = -1;
     r = read_at(v->fh, v->trk[index], hdr, 2);
@@ -278,23 +300,8 @@ static long msa_track(VFS *v, long index)
         if (len > want) return TE_BADARC;
         r = read_at(v->fh, v->trk[index] + 2, z, len);
         if (r) return r;
-        while (i < len) {
-            unsigned char c = z[i++];
-            if (c == 0xe5) {
-                long cnt;
-                if (i + 3 > len) return TE_BADARC;
-                c = z[i];
-                cnt = be16(z + i + 1);
-                i += 3;
-                if (o + cnt > want) return TE_BADARC;
-                memset(v->trkbuf + o, c, cnt);
-                o += cnt;
-            } else {
-                if (o >= want) return TE_BADARC;
-                v->trkbuf[o++] = c;
-            }
-        }
-        if (o != want) return TE_BADARC;
+        r = msa_unpack(z, len, v->trkbuf, want);
+        if (r) return r;
     }
     v->trk_cached = index;
     return 0;

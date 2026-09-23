@@ -64,8 +64,11 @@ def main():
         c.check(abs(ticks - 250) <= 2, "50 calls per second on a 60 Hz screen (%d in 300 frames)" % ticks)
         frame = st.var("ym_frame", 4)
         shadow = list(st.peek(st.sym("ym_shadow"), 14))
-        want = expected_regs(frame - 1)
-        c.check(shadow[:13] == want[:13], "YM registers are the score's, frame %d" % (frame - 1))
+        # L'image de NeoST peut tomber au milieu de la routine du lecteur :
+        # registres deja ceux de la trame suivante, compteur pas encore
+        # avance. Les deux trames voisines sont donc justes.
+        near = [expected_regs(f)[:13] for f in (frame - 1, frame)]
+        c.check(shadow[:13] in near, "YM registers are the score's, frame %d (%s)" % (frame - 1, shadow[:13]))
         c.check(st.screen()[24][79] == "♪", "a note at the end of the key bar")
         st.letter("p")
         t1 = st.var("music_ticks", 4, False)
